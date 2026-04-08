@@ -63,9 +63,16 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
         ]}
         data={receipts}
         loading={loading}
-        renderRowActions={() => (
-          <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Edit
+        searchPlaceholder="Search by receipt #, client..."
+        renderRowActions={(r: any) => (
+          <button
+            onClick={() => {
+              const msg = `Receipt: ${r.receiptNumber}\nClient: ${r.client?.name || '—'}\nAmount: ₹${Number(r.amount).toLocaleString('en-IN')}\nBank: ${r.bankAccount?.bankName || '—'}\nDate: ${new Date(r.transactionDate).toLocaleDateString()}\nStatus: ${r.status}`;
+              alert(msg);
+            }}
+            style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Details
           </button>
         )}
       />
@@ -77,8 +84,10 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
    RECEIPT ENTRY FORM
    ============================================================ */
 function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: () => void }) {
-  const { data: banks } = useApi<any[]>('/api/banks');
-  const { data: clients } = useApi<any[]>('/api/clients');
+  const { data: banksResp } = useApi<any>('/api/banks');
+  const banks = banksResp?.data || [];
+  const { data: clientsResp } = useApi<any>('/api/clients');
+  const clients = clientsResp?.data || [];
   const { mutate } = useApi('/api/receipts');
 
   const [saving, setSaving] = useState(false);
@@ -140,7 +149,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               onChange={e => setFormData({ ...formData, bankAccountId: e.target.value })}
               options={[
                 { value: '', label: 'Select Receiving Bank' },
-                ...(banks?.map((b) => ({ value: b.id, label: b.bankName })) || []),
+                ...banks.map((b: any) => ({ value: b.id, label: b.bankName })),
               ]}
             />
             <Select
@@ -149,7 +158,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               onChange={e => setFormData({ ...formData, clientId: e.target.value })}
               options={[
                 { value: '', label: 'Select Payer' },
-                ...(clients?.map((c) => ({ value: c.id, label: c.name })) || []),
+                ...clients.map((c: any) => ({ value: c.id, label: c.name })),
               ]}
             />
           </div>

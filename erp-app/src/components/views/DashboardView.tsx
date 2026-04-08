@@ -12,11 +12,27 @@ interface DashboardViewProps {
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
+  const [dateRange, setDateRange] = React.useState('30');
   const { data: invData, loading } = useApi<any>('/api/invoices?limit=100');
+  const { data: clientsResp } = useApi<any>('/api/clients');
+  const { data: receiptsResp } = useApi<any>('/api/receipts?limit=100');
   const invoices = invData?.data || [];
+  const clients = clientsResp?.data || [];
+  const receipts = receiptsResp?.data || [];
+
+  // Filter invoices by selected date range
+  const filteredInvoices = React.useMemo(() => {
+    const now = new Date();
+    let cutoff = new Date();
+    if (dateRange === '30') cutoff.setDate(now.getDate() - 30);
+    else if (dateRange === 'quarter') cutoff.setMonth(now.getMonth() - 3);
+    else cutoff.setFullYear(now.getFullYear() - 1);
+    return invoices.filter((i: any) => new Date(i.date) >= cutoff);
+  }, [invoices, dateRange]);
   
-  const pendingReceivables = invoices.filter((i: any) => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0);
-  const totalInvoices = invoices.length;
+  const pendingReceivables = filteredInvoices.filter((i: any) => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0);
+  const totalReceipts = receipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+  const activeClients = clients.filter((c: any) => c.status === 'active').length;
   
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -25,6 +41,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         description="Monitor your business metrics and recent activity."
         actions={
           <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
             style={{
               height: '36px',
               width: '180px',
@@ -38,9 +56,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               outline: 'none',
             }}
           >
-            <option>Last 30 Days</option>
-            <option>This Quarter</option>
-            <option>This Year</option>
+            <option value="30">Last 30 Days</option>
+            <option value="quarter">This Quarter</option>
+            <option value="year">This Year</option>
           </select>
         }
       />
@@ -48,9 +66,9 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       {/* KPI Cards */}
       <div className="stagger-children" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)' }}>
         <StatCard label="Pending Receivables" value={formatINR(pendingReceivables)} trend="Based on un-paid invoices" trendUp={true} icon={<Wallet size={16} />} />
-        <StatCard label="Total Invoices" value={totalInvoices.toString()} trend="Logged in system" trendUp={true} icon={<ArrowRightLeft size={16} />} />
-        <StatCard label="Active Clients" value="-" trend="See Clients tab" trendUp={false} icon={<Users size={16} />} />
-        <StatCard label="Recent Action" value="Live" trend="System connected" trendUp={null} icon={<Landmark size={16} />} />
+        <StatCard label="Total Invoices" value={filteredInvoices.length.toString()} trend={`${filteredInvoices.length} in period`} trendUp={true} icon={<ArrowRightLeft size={16} />} />
+        <StatCard label="Active Clients" value={activeClients.toString()} trend={`${clients.length} total`} trendUp={activeClients > 0} icon={<Users size={16} />} />
+        <StatCard label="Collected" value={formatINR(totalReceipts)} trend="Total receipts" trendUp={totalReceipts > 0} icon={<Landmark size={16} />} />
       </div>
 
       {/* Recent Transactions + Quick Actions */}

@@ -58,6 +58,12 @@ const CreateClientSchema = z.object({
   defaultPaymentTerms: z.string().optional(),
   gstin: z.string().length(15).optional(),
   placeOfSupply: z.string().optional(),
+  email: z.string().email('Valid email is required'),
+  contact: z.string().regex(/^\+?[0-9]{10,14}$/, 'Valid phone number is required'),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  pincode: z.string().optional(),
   createdBy: z.string().uuid().optional(),
 });
 
@@ -78,7 +84,13 @@ export async function POST(request: NextRequest) {
           type: parsed.type,
           defaultPaymentTerms: parsed.defaultPaymentTerms,
           gstin: parsed.gstin,
-          placeOfSupply: parsed.placeOfSupply,
+          placeOfSupply: parsed.placeOfSupply || parsed.state,
+          email: parsed.email,
+          contact: parsed.contact,
+          address: parsed.address,
+          city: parsed.city,
+          state: parsed.state,
+          pincode: parsed.pincode,
           status: 'active',
         },
       });

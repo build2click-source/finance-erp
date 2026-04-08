@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, MoreVertical } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { PageHeader, Button, Card, Input, Textarea, Select } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -12,7 +12,8 @@ interface BankViewProps {
 
 export function BankView({ onNavigate }: BankViewProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const { data: banks, loading, revalidate } = useApi<any[]>('/api/banks', []);
+  const { data: banksResp, loading, revalidate } = useApi<any>('/api/banks');
+  const banks = banksResp?.data || [];
 
   if (isCreating) {
     return <BankForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidate(); }} />;
@@ -59,13 +60,17 @@ export function BankView({ onNavigate }: BankViewProps) {
         ]}
         data={banks || []}
         loading={loading}
-        renderRowActions={() => (
+        searchPlaceholder="Search by bank name, account, IFSC..."
+        renderRowActions={(b: any) => (
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-            <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-              Edit
-            </button>
-            <button style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-              <MoreVertical size={16} />
+            <button
+              onClick={() => {
+                const msg = `Bank: ${b.bankName || b.name}\nAccount: ${b.accountNumber}\nIFSC: ${b.ifscCode || b.ifsc || '—'}\nBranch: ${b.branch || '—'}`;
+                alert(msg);
+              }}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Details
             </button>
           </div>
         )}

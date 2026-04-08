@@ -13,13 +13,52 @@ interface ClientsViewProps {
 
 export function ClientsView({ onNavigate }: ClientsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const { data: clients, loading, error, revalidate } = useApi<any[]>('/api/clients', []);
+  const [editingClient, setEditingClient] = useState<any>(null);
+  const [viewingClient, setViewingClient] = useState<any>(null);
+  const { data: clientsResp, loading, error, revalidate } = useApi<any>('/api/clients');
+  const clients = clientsResp?.data || [];
 
-  if (isCreating) {
-    return <ClientForm onCancel={() => setIsCreating(false)} onSuccess={() => {
-      setIsCreating(false);
-      revalidate();
-    }} />;
+  if (isCreating || editingClient) {
+    return <ClientForm 
+      initialData={editingClient}
+      onCancel={() => { setIsCreating(false); setEditingClient(null); }} 
+      onSuccess={() => {
+        setIsCreating(false);
+        setEditingClient(null);
+        revalidate();
+      }} 
+    />;
+  }
+
+  if (viewingClient) {
+    return (
+      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+        <PageHeader
+          title={`Client Details: ${viewingClient.name}`}
+          description={`Viewing profile for ${viewingClient.code}`}
+          actions={
+            <>
+              <Button variant="secondary" onClick={() => setViewingClient(null)}>Back</Button>
+              <Button onClick={() => { setEditingClient(viewingClient); setViewingClient(null); }}>Edit Client</Button>
+            </>
+          }
+        />
+        <Card>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Name</p><p>{viewingClient.name}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Code / Alias</p><p>{viewingClient.code}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Type</p><p>{viewingClient.type}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>GSTIN</p><p className="font-technical">{viewingClient.gstin || 'N/A'}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Email</p><p>{viewingClient.email || 'N/A'}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Contact</p><p>{viewingClient.contact || 'N/A'}</p></div>
+            <div style={{gridColumn: 'span 2'}}><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Address</p><p>{viewingClient.address || 'N/A'}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>City</p><p>{viewingClient.city || 'N/A'}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>State</p><p>{viewingClient.state || 'N/A'}</p></div>
+            <div><p style={{color: 'var(--text-tertiary)', fontSize: 'var(--text-xs)'}}>Pincode</p><p>{viewingClient.pincode || 'N/A'}</p></div>
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -48,27 +87,38 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
                   {c.name}
                 </p>
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                  ID: {c.id.toString().padStart(4, '0')}
+                  {c.code}
                 </p>
               </div>
             ),
           },
           { key: 'type', header: 'Type', render: (c) => <span style={{ color: 'var(--text-secondary)' }}>{c.type}</span> },
-          { key: 'contact', header: 'Contact', render: (c) => <span style={{ color: 'var(--text-secondary)' }}>{c.contact}</span> },
-          {
-            key: 'status',
-            header: 'Status',
-            render: (c) => (
-              <Badge variant={c.status === 'active' ? 'success' : 'default'}>{c.status}</Badge>
-            ),
-          },
+          { key: 'gstin', header: 'GSTIN', render: (c) => <span className="font-technical" style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>{c.gstin || '—'}</span> },
         ]}
         data={clients || []}
         loading={loading}
-        renderRowActions={() => (
-          <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Edit
-          </button>
+        searchPlaceholder="Search by name, code, or GSTIN..."
+        renderRowActions={(c: any) => (
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <button
+              onClick={() => setViewingClient(c)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              View
+            </button>
+            <button
+              onClick={() => setEditingClient(c)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onNavigate('invoices')}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Invoices
+            </button>
+          </div>
         )}
       />
     </div>
@@ -76,40 +126,46 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
 }
 
 /* ============================================================
-   CLIENT CREATION FORM
+   CLIENT CREATION / EDIT FORM
    ============================================================ */
-function ClientForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: () => void }) {
+function ClientForm({ initialData, onCancel, onSuccess }: { initialData?: any, onCancel: () => void, onSuccess: () => void }) {
   const [loadingGst, setLoadingGst] = useState(false);
+  const [loadingPincode, setLoadingPincode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const { mutate } = useApi('/api/clients');
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  const { mutate } = useApi(initialData ? `/api/clients/${initialData.id}` : '/api/clients');
+  
   const [formData, setFormData] = useState({
-    name: '',
-    alias: '',
-    type: 'Both',
+    name: initialData?.name || '',
+    alias: initialData?.code || '',
+    type: initialData?.type ? (initialData.type === 'Customer' ? 'Buyer' : initialData.type === 'Vendor' ? 'Seller' : 'Both') : 'Both',
     doj: '2026-04-01',
-    address: '',
-    pincode: '',
-    contact: '',
-    city: '',
-    state: '',
-    email: '',
-    gstin: ''
+    address: initialData?.address || '',
+    pincode: initialData?.pincode || '',
+    contact: initialData?.contact || '',
+    city: initialData?.city || '',
+    state: initialData?.state || initialData?.placeOfSupply || '',
+    email: initialData?.email || '',
+    gstin: initialData?.gstin || ''
   });
 
   const handleGstinLookup = async () => {
     if (!formData.gstin || formData.gstin.length !== 15) return;
     setLoadingGst(true);
+    setErrorMsg('');
     try {
       const res = await fetch(`/api/gstin/${formData.gstin}`);
       const json = await res.json();
-      if (json.success && json.data.valid) {
+      if (json.success && json.data) {
+        // We will populate state even if valid is false (the fallback logic gives us stateName)
         setFormData(prev => ({
           ...prev,
           name: json.data.tradeName || json.data.legalName || prev.name,
-          address: json.data.address.fullAddress || prev.address,
-          pincode: json.data.address.pincode || prev.pincode,
-          city: json.data.address.district || prev.city,
-          state: json.data.address.state || prev.state,
+          address: json.data.address?.fullAddress || prev.address,
+          pincode: json.data.address?.pincode || prev.pincode,
+          city: json.data.address?.district || prev.city,
+          state: json.data.stateName || json.data.address?.state || prev.state,
         }));
       }
     } catch (e) {
@@ -119,21 +175,71 @@ function ClientForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: 
     }
   };
 
+  const handlePincodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const pin = e.target.value;
+    setFormData({ ...formData, pincode: pin });
+    if (pin.length === 6 && /^[0-9]+$/.test(pin)) {
+      setLoadingPincode(true);
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+        const data = await res.json();
+        if (data && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+          const po = data[0].PostOffice[0];
+          setFormData(prev => ({
+            ...prev,
+            city: po.District || prev.city,
+            state: po.State || prev.state,
+          }));
+        }
+      } catch (err) {
+        console.error('Pincode lookup error:', err);
+      } finally {
+        setLoadingPincode(false);
+      }
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
+    setErrorMsg('');
+    
+    // Frontend Validation
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setErrorMsg('Valid billing email address is required.');
+      setSaving(false);
+      return;
+    }
+    if (!formData.contact || !/^\+?[0-9]{10,14}$/.test(formData.contact)) {
+      setErrorMsg('Valid primary contact number (10-14 digits) is required.');
+      setSaving(false);
+      return;
+    }
+
     try {
-      await mutate('POST', {
-        code: formData.alias || formData.name.substring(0, 4).toUpperCase() + Math.floor(Math.random() * 1000),
+      const method = initialData ? 'PUT' : 'POST';
+      let code = formData.alias || formData.name.substring(0, 4).toUpperCase() + Math.floor(Math.random() * 1000);
+      if (code.length > 20) code = code.substring(0, 20); // enforce validation max length
+      
+      const payload = {
+        code,
         name: formData.name,
         type: formData.type === 'Buyer' ? 'Customer' : formData.type === 'Seller' ? 'Vendor' : 'Both',
         gstin: formData.gstin || undefined,
         placeOfSupply: formData.state || undefined,
+        email: formData.email,
+        contact: formData.contact,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
         defaultCurrency: 'INR',
-      });
+      };
+      
+      await mutate(method, payload);
       onSuccess();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to save client');
+      setErrorMsg(e.message || 'Failed to save client due to a server error.');
     } finally {
       setSaving(false);
     }
@@ -142,17 +248,23 @@ function ClientForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: 'var(--space-10)' }}>
       <PageHeader
-        title="Create Client Profile"
-        description="Add a new buyer, seller, or dual-role client to the system."
+        title={initialData ? "Edit Client Profile" : "Create Client Profile"}
+        description={initialData ? "Update the client profile." : "Add a new buyer, seller, or dual-role client to the system."}
         actions={
           <>
             <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving || !formData.name}>
-              {saving ? 'Saving...' : 'Save Client'}
+              {saving ? 'Saving...' : (initialData ? 'Update Client' : 'Save Client')}
             </Button>
           </>
         }
       />
+
+      {errorMsg && (
+        <div style={{ padding: 'var(--space-3)', backgroundColor: '#ef444415', color: '#ef4444', borderRadius: 'var(--radius-md)', border: '1px solid #ef444450' }}>
+          <strong>Error:</strong> {errorMsg}
+        </div>
+      )}
 
       <Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
@@ -183,6 +295,7 @@ function ClientForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: 
                 label="Billing Email Address" 
                 type="email" 
                 placeholder="billing@company.com" 
+                required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
@@ -246,18 +359,20 @@ function ClientForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: 
               </div>
               <Input 
                 label="Pincode / Zip Code" 
-                placeholder="Enter Pincode" 
+                placeholder="Enter 6-digit Pincode" 
                 value={formData.pincode}
-                onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                onChange={handlePincodeChange}
+                disabled={loadingPincode}
               />
               <Input 
                 label="Primary Contact Number" 
-                placeholder="+91 98765 43210" 
+                placeholder="e.g. 9876543210" 
+                required
                 value={formData.contact}
                 onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
               />
-              <Input label="City" placeholder="Auto-filled" disabled value={formData.city} />
-              <Input label="State / Region" placeholder="Auto-filled" disabled value={formData.state} />
+              <Input label="City" placeholder="City" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} />
+              <Input label="State / Region" placeholder="State" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} />
             </div>
           </section>
         </div>

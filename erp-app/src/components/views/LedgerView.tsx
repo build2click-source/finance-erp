@@ -28,12 +28,33 @@ export function LedgerView({ onNavigate }: LedgerViewProps) {
     const totalPaid = clientReceipts.reduce((sum: number, rcpt: any) => sum + Number(rcpt.amount || 0), 0);
     return {
       client: c.name,
+      code: c.code,
       type: c.type,
       totalInvoiced,
       totalPaid,
       outstanding: totalInvoiced - totalPaid,
     };
   });
+
+  const handleExportCSV = () => {
+    const headers = ['Client', 'Code', 'Type', 'Total Invoiced', 'Total Paid', 'Outstanding'];
+    const rows = ledgerData.map((row: any) => [
+      `"${row.client}"`,
+      row.code,
+      row.type,
+      row.totalInvoiced.toFixed(2),
+      row.totalPaid.toFixed(2),
+      row.outstanding.toFixed(2),
+    ]);
+    const csv = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ledger_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -43,7 +64,7 @@ export function LedgerView({ onNavigate }: LedgerViewProps) {
         actions={
           <>
             <Button variant="secondary" onClick={() => onNavigate('dashboard')}>Dashboard</Button>
-            <Button variant="secondary"><Download size={16} /> Export CSV</Button>
+            <Button variant="secondary" onClick={handleExportCSV}><Download size={16} /> Export CSV</Button>
           </>
         }
       />
@@ -54,9 +75,12 @@ export function LedgerView({ onNavigate }: LedgerViewProps) {
             key: 'client',
             header: 'Client',
             render: (e) => (
-              <span style={{ fontWeight: 500, color: 'var(--text-primary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
-                {e.client}
-              </span>
+              <div>
+                <span style={{ fontWeight: 500, color: 'var(--text-primary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  {e.client}
+                </span>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>{e.code}</span>
+              </div>
             ),
           },
           { key: 'type', header: 'Type', render: (e) => <span style={{ color: 'var(--text-secondary)' }}>{e.type}</span> },
@@ -85,11 +109,7 @@ export function LedgerView({ onNavigate }: LedgerViewProps) {
         ]}
         data={ledgerData}
         loading={cLoad || iLoad || rLoad}
-        renderRowActions={() => (
-          <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Edit
-          </button>
-        )}
+        searchPlaceholder="Search ledger by client..."
       />
     </div>
   );

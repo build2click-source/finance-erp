@@ -5,6 +5,7 @@ import { Sidebar, ViewId } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { DashboardView } from '@/components/views/DashboardView';
 import { ClientsView } from '@/components/views/ClientsView';
+import { TradesView } from '@/components/views/TradesView';
 import { TransactionsView } from '@/components/views/TransactionsView';
 import { ReceiptsView } from '@/components/views/ReceiptsView';
 import { InvoicesView } from '@/components/views/InvoicesView';
@@ -40,6 +41,7 @@ export default function AppShell() {
           <div className="page-container">
             {activeView === 'dashboard' && <DashboardView onNavigate={handleNavigate} />}
             {activeView === 'clients' && <ClientsView onNavigate={handleNavigate} />}
+            {activeView === 'data-entry' && <TradesView onNavigate={handleNavigate} />}
             {activeView === 'transactions' && <TransactionsView onNavigate={handleNavigate} />}
             {activeView === 'receipts' && <ReceiptsView onNavigate={handleNavigate} />}
             {activeView === 'invoices' && <InvoicesView onNavigate={handleNavigate} />}

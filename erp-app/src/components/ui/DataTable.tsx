@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, Button } from './index';
 
 /* ============================================================
@@ -16,6 +16,7 @@ interface Column<T> {
   render: (row: T) => React.ReactNode;
   align?: 'left' | 'right' | 'center';
   width?: string;
+  searchable?: boolean; // marks column as searchable (defaults to true)
 }
 
 interface DataTableProps<T> {
@@ -26,6 +27,7 @@ interface DataTableProps<T> {
   renderRowActions?: (row: T) => React.ReactNode;
   emptyMessage?: string;
   loading?: boolean;
+  pageSize?: number;
 }
 
 export function DataTable<T>({
@@ -36,13 +38,55 @@ export function DataTable<T>({
   renderRowActions,
   emptyMessage = 'No results found.',
   loading = false,
+  pageSize = 10,
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [currentPage, setCurrentPage] = React.useState(1);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
+    setCurrentPage(1); // reset to page 1 on search
     onSearch?.(e.target.value);
   };
+
+  // Client-side search filtering
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery.trim()) return data;
+    const query = searchQuery.toLowerCase();
+    return data.filter((row: any) => {
+      // Search across all column keys + common fields
+      return columns.some((col) => {
+        try {
+          const val = row[col.key];
+          if (val == null) return false;
+          if (typeof val === 'string') return val.toLowerCase().includes(query);
+          if (typeof val === 'number') return val.toString().includes(query);
+          // Search nested objects (e.g. row.client.name)
+          if (typeof val === 'object' && val.name) return val.name.toLowerCase().includes(query);
+          return false;
+        } catch {
+          return false;
+        }
+      }) ||
+      // Also search common nested fields
+      (row as any).name?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).code?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).description?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).invoiceNumber?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).receiptNumber?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).sku?.toLowerCase?.()?.includes?.(query) ||
+      (row as any).client?.name?.toLowerCase?.()?.includes?.(query);
+    });
+  }, [data, searchQuery, columns]);
+
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIdx = (safeCurrentPage - 1) * pageSize;
+  const paginatedData = filteredData.slice(startIdx, startIdx + pageSize);
+
+  const goToPrev = () => setCurrentPage((p) => Math.max(1, p - 1));
+  const goToNext = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
 
   return (
     <Card padding={false}>
@@ -91,9 +135,9 @@ export function DataTable<T>({
             }}
           />
         </div>
-        <Button variant="secondary" size="sm">
-          <Filter size={14} /> Filters
-        </Button>
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+          {filteredData.length} of {data.length} records
+        </span>
       </div>
 
       {/* Table */}
@@ -118,8 +162,8 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {data.length > 0 ? (
-              data.map((row, i) => (
+            {paginatedData.length > 0 ? (
+              paginatedData.map((row, i) => (
                 <tr key={i}>
                   {columns.map((col) => (
                     <td
@@ -172,13 +216,16 @@ export function DataTable<T>({
         }}
       >
         <span>
-          Showing <strong style={{ color: 'var(--text-primary)' }}>{data.length}</strong> results
+          Showing <strong style={{ color: 'var(--text-primary)' }}>{startIdx + 1}–{Math.min(startIdx + pageSize, filteredData.length)}</strong> of {filteredData.length} results
         </span>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }}>
-            <ChevronLeft size={14} /> Previous
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToPrev} disabled={safeCurrentPage <= 1}>
+            <ChevronLeft size={14} /> Prev
           </Button>
-          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }}>
+          <span style={{ padding: '0 8px', fontWeight: 500, color: 'var(--text-primary)' }}>
+            {safeCurrentPage} / {totalPages}
+          </span>
+          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToNext} disabled={safeCurrentPage >= totalPages}>
             Next <ChevronRight size={14} />
           </Button>
         </div>

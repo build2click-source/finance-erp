@@ -122,6 +122,136 @@ async function main() {
   }
 
   console.log(`\n✅ Seeded ${accounts.length} accounts successfully.`);
+
+  // --- MOCK DATA INJECTION ---
+  console.log('\n🌱 Seeding Mock Data (Clients, Products, Invoices, Receipts)...');
+
+  // 1. Clients
+  const client1 = await prisma.client.upsert({
+    where: { code: 'CLI-001' },
+    update: {},
+    create: {
+      code: 'CLI-001',
+      name: 'Acme Corp',
+      type: 'Customer',
+      gstin: '27AADCB2230M1Z2',
+      customerAccountId: createdAccounts['1200'], // AR
+    }
+  });
+
+  const client2 = await prisma.client.upsert({
+    where: { code: 'VND-001' },
+    update: {},
+    create: {
+      code: 'VND-001',
+      name: 'Global Supplies Ltd',
+      type: 'Vendor',
+      gstin: '27VNDCB2230M1Z2',
+      vendorAccountId: createdAccounts['2100'], // AP
+    }
+  });
+
+  // 2. Product
+  const product1 = await prisma.product.upsert({
+    where: { sku: 'SKU-WIDGET-01' },
+    update: {},
+    create: {
+      sku: 'SKU-WIDGET-01',
+      name: 'Premium Widget',
+      hsnCode: '8471',
+      defaultUom: 'PCS',
+      isStocked: true,
+      defaultIncomeAccountId: createdAccounts['4100'], // Sales Revenue
+      gstRate: 18,
+    }
+  });
+
+  // 3. Bank Account
+  const bank1 = await prisma.bankAccount.upsert({
+    where: { accountId: createdAccounts['1130'] },
+    update: {},
+    create: {
+      accountId: createdAccounts['1130'], // ICICI Bank
+      bankName: 'ICICI Bank',
+      accountNumber: '000123456789',
+      ifscCode: 'ICIC0000001',
+    }
+  });
+
+  // 4. Invoice + Transaction + Journals
+  await prisma.invoice.upsert({
+    where: { invoiceNumber: 'INV-2026-001' },
+    update: {},
+    create: {
+      invoiceNumber: 'INV-2026-001',
+      type: 'TaxInvoice',
+      date: new Date(),
+      clientId: client1.id,
+      totalAmount: 1180,
+      totalTax: 180,
+      status: 'posted',
+      lines: {
+        create: [
+          {
+            productId: product1.id,
+            qty: 10,
+            unitPrice: 100,
+            lineNet: 1000,
+            gstRate: 18,
+            gstAmount: 180,
+          }
+        ]
+      },
+      transactions: {
+        create: [
+          {
+            description: 'Invoice Posting',
+            postedAt: new Date(),
+            journalEntries: {
+              create: [
+                { accountId: createdAccounts['1200'], amount: 1180, entryType: 'Dr' },
+                { accountId: createdAccounts['4100'], amount: -1000, entryType: 'Cr' },
+                { accountId: createdAccounts['2210'], amount: -90, entryType: 'Cr' }, // CGST
+                { accountId: createdAccounts['2220'], amount: -90, entryType: 'Cr' }, // SGST
+              ]
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  // 5. Receipt + Transaction + Journals (Partial Payment for the Invoice)
+  await prisma.receipt.upsert({
+    where: { receiptNumber: 'RCPT-2026-001' },
+    update: {},
+    create: {
+      receiptNumber: 'RCPT-2026-001',
+      date: new Date(),
+      clientId: client1.id,
+      bankAccountId: bank1.id,
+      amount: 500,
+      paymentMode: 'NEFT',
+      referenceNumber: 'NEFT/123456789',
+      status: 'posted',
+      transactions: {
+        create: [
+          {
+            description: 'Receipt Settlement',
+            postedAt: new Date(),
+            journalEntries: {
+              create: [
+                { accountId: createdAccounts['1130'], amount: 500, entryType: 'Dr' },
+                { accountId: createdAccounts['1200'], amount: -500, entryType: 'Cr' }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  console.log('✅ Mock data seeded successfully.');
 }
 
 main()

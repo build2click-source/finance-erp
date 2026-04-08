@@ -149,6 +149,7 @@ model Product {
   costLayers           CostLayer[]
   inventoryMovements   InventoryMovement[]
   invoiceLines         InvoiceLine[]
+  brokerageTrades      Trade[]
 
   @@map("products")
 }
@@ -284,6 +285,12 @@ model Client {
   gstin               String?
   placeOfSupply       String?      @map("place_of_supply")
   status              ClientStatus @default(prospect)
+  email               String?
+  contact             String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
   createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz()
 
   // Relations
@@ -292,8 +299,11 @@ model Client {
   history         ClientHistory[]
   kyc             ClientKyc[]
   invoices        Invoice[]
+  sellerTrades    Trade[]         @relation("SellerTrades")
+  buyerTrades     Trade[]         @relation("BuyerTrades")
   receipts        Receipt[]
   payments        Payment[]
+  tenures         Tenure[]
 
   @@index([code, name, gstin], map: "idx_clients_search")
   @@map("clients")
@@ -349,6 +359,45 @@ enum KycStatus {
   pending
   verified
   rejected
+}
+
+// ============================================================
+// 4.5 BILLING TENURES (Recurring Billing)
+// ============================================================
+
+/// Recurring billing configurations for automated invoice generation
+model Tenure {
+  id              String          @id @default(uuid()) @db.Uuid
+  clientId        String          @map("client_id") @db.Uuid
+  description     String
+  amount          Decimal         @db.Decimal(18, 2)
+  currency        String          @default("INR") @db.Char(3)
+  frequency       TenureFrequency
+  startDate       DateTime        @map("start_date") @db.Date
+  endDate         DateTime?       @map("end_date") @db.Date
+  nextBillingDate DateTime        @map("next_billing_date") @db.Date
+  gstRate         Decimal         @default(18) @map("gst_rate") @db.Decimal(5, 2)
+  status          TenureStatus    @default(active)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  client          Client          @relation(fields: [clientId], references: [id])
+
+  @@index([clientId], map: "idx_tenures_client")
+  @@index([nextBillingDate, status], map: "idx_tenures_next_billing")
+  @@map("tenures")
+}
+
+enum TenureFrequency {
+  Monthly
+  Quarterly
+  Annually
+}
+
+enum TenureStatus {
+  active
+  paused
+  cancelled
 }
 
 // ============================================================
@@ -435,4 +484,32 @@ enum ReceiptStatus {
   posted
   reconciled
   cancelled
+}
+
+// ============================================================
+// 4.6 BROKERAGE TRADES (Data Entry)
+// ============================================================
+
+/// Commodity / Brokerage Trades
+model Trade {
+  id              String   @id @default(uuid()) @db.Uuid
+  date            DateTime @db.Date
+  sellerId        String   @map("seller_id") @db.Uuid
+  buyerId         String   @map("buyer_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  quantity        Decimal  @db.Decimal(18, 4)
+  price           Decimal  @db.Decimal(18, 2)
+  tradeType       String   @map("trade_type") // "sell" / "buy"
+  remarks         String?
+  commissionRate  Decimal  @map("commission_rate") @db.Decimal(18, 2) // '@'
+  commissionAmt   Decimal  @map("commission_amount") @db.Decimal(18, 2) // 'AMOUNT'
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  seller  Client  @relation("SellerTrades", fields: [sellerId], references: [id])
+  buyer   Client  @relation("BuyerTrades", fields: [buyerId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([date], map: "idx_trades_date")
+  @@map("trades")
 }

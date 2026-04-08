@@ -14,7 +14,8 @@ interface InvoicesViewProps {
 
 export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const { data: invoices, loading, error, revalidate } = useApi<any[]>('/api/invoices', []);
+  const { data: invoicesResp, loading, error, revalidate } = useApi<any>('/api/invoices');
+  const invoices = invoicesResp?.data || [];
 
   if (isCreating) {
     return <InvoiceForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidate(); }} />;
@@ -80,9 +81,16 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
           status: inv.status,
         })) : []}
         loading={loading}
-        renderRowActions={() => (
-          <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Edit
+        searchPlaceholder="Search by invoice #, client..."
+        renderRowActions={(inv: any) => (
+          <button
+            onClick={() => {
+              const msg = `Invoice: ${inv.id}\nClient: ${inv.client?.name || '—'}\nAmount: ₹${inv.amount?.toLocaleString('en-IN')}\nStatus: ${inv.status}\nDate: ${inv.tenure}`;
+              alert(msg);
+            }}
+            style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Details
           </button>
         )}
       />
@@ -94,7 +102,8 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
    INVOICE CREATION FORM
    ============================================================ */
 function InvoiceForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: () => void }) {
-  const { data: clients } = useApi<any[]>('/api/clients');
+  const { data: clientsResp } = useApi<any>('/api/clients');
+  const clients = clientsResp?.data || [];
   const { data: productsData } = useApi<any>('/api/products');
   const { mutate } = useApi('/api/invoices');
   const products = productsData?.data || [];
@@ -164,7 +173,7 @@ function InvoiceForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               label="Select Client"
               value={formData.clientId}
               onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-              options={[{ value: '', label: 'Select Client...' }, ...(clients?.map((c) => ({ value: c.id, label: c.name })) || [])]}
+              options={[{ value: '', label: 'Select Client...' }, ...clients.map((c: any) => ({ value: c.id, label: c.name }))]}
             />
             <Input label="Invoice Date" type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} />
             <Input label="Billing Period / Tenure" placeholder="e.g. Q2 2026" value={formData.tenure} onChange={(e) => setFormData({ ...formData, tenure: e.target.value })} />

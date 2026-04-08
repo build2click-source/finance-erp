@@ -188,9 +188,12 @@ export function ProductsView({ onNavigate }: ProductsViewProps) {
         data={combinedData}
         loading={prodLoad || invLoad}
         searchPlaceholder="Search by SKU, name, or HSN..."
-        renderRowActions={() => (
-          <button style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            Edit
+        renderRowActions={(p: ProductRow) => (
+          <button
+            onClick={() => setIsMovement('receive')}
+            style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+          >
+            Stock In
           </button>
         )}
       />

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export type ViewId =
-  | 'dashboard' | 'clients' | 'transactions' | 'receipts'
+  | 'dashboard' | 'clients' | 'data-entry' | 'transactions' | 'receipts'
   | 'invoices' | 'ledger' | 'products' | 'bank' | 'tenure';
 
 export interface NavItem {
@@ -20,7 +20,8 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'clients', label: 'Clients', icon: Users },
-  { id: 'transactions', label: 'Transactions', icon: ArrowRightLeft },
+  { id: 'data-entry', label: 'Data Entry', icon: ArrowRightLeft },
+  { id: 'transactions', label: 'Manual Journals', icon: BookOpen },
   { id: 'receipts', label: 'Receipts Entry', icon: Receipt },
   { id: 'invoices', label: 'Sales Invoices', icon: FileText },
   { id: 'ledger', label: 'Ledger', icon: BookOpen },

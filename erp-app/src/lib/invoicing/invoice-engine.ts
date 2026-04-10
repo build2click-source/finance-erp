@@ -63,6 +63,7 @@ export interface CreateInvoiceInput {
   dispatchedThrough?: string;
   destination?: string;
   termsOfDelivery?: string;
+  dueDate?: string;
 }
 
 export interface PostedInvoiceResult {
@@ -255,6 +256,8 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
       dispatchedThrough: input.dispatchedThrough,
       destination: input.destination,
       termsOfDelivery: input.termsOfDelivery,
+      notes: input.notes,
+      dueDate: input.dueDate ? new Date(input.dueDate) : null,
     },
   });
 

@@ -60,7 +60,7 @@ export async function PUT(
 
     const data = parsed.data;
     const updated = await prisma.vendorBill.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(data.vendorId && { vendorId: data.vendorId }),
         ...(data.billNumber && { billNumber: data.billNumber }),

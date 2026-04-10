@@ -44,13 +44,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     journalLines.push({ accountId: apAccount.id, amount: -Number(bill.totalAmount), entryType: 'Cr' as const });
 
     // Atomic TX: update status and log to AP
-    const [updatedBill, tx] = await prisma.$transaction([
+    const [updatedBill] = await prisma.$transaction([
       prisma.vendorBill.update({
         where: { id: bill.id },
         data: { status: 'posted' }
       }),
-      // Using prisma directly here since createTransaction may not support $transaction out of the box nicely
-      // But creating transaction using standard lib is preferred if we don't care about atomic boundary just for MVP
     ]);
 
     // Perform journal posting (outside atomic boundary simply for MVP)

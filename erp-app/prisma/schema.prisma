@@ -260,6 +260,8 @@ model Invoice {
   termsOfDelivery String?       @map("terms_of_delivery")
   bankDetails     String?       @map("bank_details")
   panNo           String?       @map("pan_no")
+  notes           String?
+  dueDate         DateTime?     @map("due_date") @db.Date
 
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
 

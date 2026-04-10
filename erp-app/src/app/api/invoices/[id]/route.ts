@@ -21,6 +21,7 @@ const UpdateInvoiceSchema = z.object({
   destination: z.string().optional().nullable(),
   termsOfDelivery: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
   lines: z.array(z.object({
     id: z.string().uuid().optional(),
     productId: z.string().uuid().optional().nullable(),
@@ -114,6 +115,7 @@ export async function PATCH(
         destination: parsed.destination,
         termsOfDelivery: parsed.termsOfDelivery,
         notes: parsed.notes,
+        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : undefined,
       }
     });
 
@@ -155,7 +157,8 @@ export async function PATCH(
       let sgst = 0;
       let igst = 0;
 
-      const client = await prisma.client.findUnique({ where: { id: parsed.clientId || updatedInvoice.clientId } });
+      const clientId = parsed.clientId || updatedInvoice.clientId;
+      const client = clientId ? await prisma.client.findUnique({ where: { id: clientId } }) : null;
       const company = await prisma.companyProfile.findFirst();
       
       const companyState = company?.state || 'West Bengal';

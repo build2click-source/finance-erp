@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
 import { PageHeader, Button, Card, Input, Select, Textarea } from '@/components/ui';
+import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/mock-data';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
@@ -43,21 +44,22 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
   // Filtered lines
   const filteredLines = useMemo(() => {
     return flatLines.filter((line: any) => {
-      if (selectedClient && line.clientId !== selectedClient) return false;
-      if (dateFrom) {
-        const lineDate = new Date(line.date);
-        const from = new Date(dateFrom);
-        if (lineDate < from) return false;
-      }
-      if (dateTo) {
-        const lineDate = new Date(line.date);
-        const to = new Date(dateTo);
-        to.setHours(23, 59, 59, 999);
-        if (lineDate > to) return false;
-      }
-      return true;
+      const matchesClient = !selectedClient || line.clientId === selectedClient;
+      const lineDate = new Date(line.date);
+      const matchesFrom = !dateFrom || lineDate >= new Date(dateFrom);
+      const matchesTo = !dateTo || lineDate <= new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+      return matchesClient && matchesFrom && matchesTo;
     });
   }, [flatLines, selectedClient, dateFrom, dateTo]);
+
+  const columns = [
+    { key: 'type', header: 'Type', render: (trx: any) => <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{trx.type.replace('_', ' ')}</span> },
+    { key: 'no', header: 'Ref No', render: (trx: any) => <span style={{ fontFamily: 'var(--font-technical)', color: 'var(--text-secondary)' }}>{trx.no}</span> },
+    { key: 'date', header: 'Date', render: (trx: any) => <span style={{ color: 'var(--text-secondary)' }}>{trx.dateFormatted}</span> },
+    { key: 'particulars', header: 'Particulars', render: (trx: any) => trx.particulars },
+    { key: 'drAmt', header: 'Debit (Dr)', render: (trx: any) => trx.drAmt ? formatINR(trx.drAmt) : '-', align: 'right' as const },
+    { key: 'crAmt', header: 'Credit (Cr)', render: (trx: any) => trx.crAmt ? formatINR(trx.crAmt) : '-', align: 'right' as const },
+  ];
 
   if (isCreating) {
     return <TransactionForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidate(); }} />;
@@ -105,95 +107,39 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
       />
 
       <Card padding={false}>
-        {/* Filters */}
-        <div
-          style={{
-            padding: 'var(--space-5)',
-            borderBottom: '1px solid var(--border-subtle)',
-            backgroundColor: 'var(--surface-container-low)',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 'var(--space-4)',
-            alignItems: 'flex-end',
-          }}
-        >
-          <div style={{ flex: 1, maxWidth: '300px' }}>
-            <Select
-              label="Select Client"
-              value={selectedClient}
-              onChange={(e) => setSelectedClient(e.target.value)}
-              options={[
-                { value: '', label: '-- All Clients --' },
-                ...clients.map((c: any) => ({ value: c.id, label: c.name })),
-              ]}
-            />
-          </div>
-          <div style={{ flex: 1, maxWidth: '400px' }}>
-            <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-              Date Range
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              <span style={{ color: 'var(--text-tertiary)', fontWeight: 500 }}>→</span>
-              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <Button variant="secondary" onClick={handleClearFilters}>Clear</Button>
-            <Button variant="secondary" onClick={handleExportCSV}><Download size={16} /> CSV</Button>
-          </div>
-        </div>
-
-        {/* Transaction Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: '12%', borderRight: '1px solid var(--border-subtle)' }}>Type</th>
-                <th style={{ width: '12%', borderRight: '1px solid var(--border-subtle)' }}>Ref No</th>
-                <th style={{ width: '12%', borderRight: '1px solid var(--border-subtle)' }}>Date</th>
-                <th style={{ width: '34%', borderRight: '1px solid var(--border-subtle)' }}>Particulars</th>
-                <th style={{ width: '15%', textAlign: 'right', borderRight: '1px solid var(--border-subtle)' }}>Debit (Dr)</th>
-                <th style={{ width: '15%', textAlign: 'right' }}>Credit (Cr)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLines.length > 0 ? (
-                filteredLines.map((trx: any, i: number) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 500, borderRight: '1px solid var(--border-subtle)', textTransform: 'capitalize' }}>{trx.type.replace('_', ' ')}</td>
-                    <td style={{ fontFamily: 'var(--font-technical)', color: 'var(--text-secondary)', borderRight: '1px solid var(--border-subtle)' }}>{trx.no}</td>
-                    <td style={{ color: 'var(--text-secondary)', borderRight: '1px solid var(--border-subtle)' }}>{trx.dateFormatted}</td>
-                    <td style={{ borderRight: '1px solid var(--border-subtle)' }}>{trx.particulars}</td>
-                    <td className="currency" style={{ textAlign: 'right', borderRight: '1px solid var(--border-subtle)' }}>
-                      {trx.drAmt ? formatINR(trx.drAmt) : '-'}
-                    </td>
-                    <td className="currency" style={{ textAlign: 'right' }}>
-                      {trx.crAmt ? formatINR(trx.crAmt) : '-'}
-                    </td>
-                  </tr>
-                ))
-              ) : loading ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 'var(--space-10)', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                    Loading transactions...
-                  </td>
-                </tr>
-              ) : (
-                <tr>
-                  <td colSpan={6} style={{ padding: 'var(--space-10)', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                    No transactions match your criteria
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: 'var(--space-3) var(--space-5)', borderTop: '1px solid var(--border-subtle)', fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
-          Showing <strong style={{ color: 'var(--text-primary)' }}>{filteredLines.length}</strong> journal entries
-        </div>
+        <DataTable
+          columns={columns}
+          data={filteredLines}
+          loading={loading}
+          searchPlaceholder="Search particulars, ref #..."
+          filters={
+            <>
+              <Select
+                value={selectedClient}
+                onChange={(e) => setSelectedClient(e.target.value)}
+                options={[
+                  { value: '', label: 'All Clients' },
+                  ...clients.map((c: any) => ({ value: c.id, label: c.name })),
+                ]}
+                style={{ width: '180px' }}
+              />
+              <Input 
+                type="date" 
+                value={dateFrom} 
+                onChange={(e) => setDateFrom(e.target.value)} 
+                style={{ width: '150px' }} 
+              />
+              <Input 
+                type="date" 
+                value={dateTo} 
+                onChange={(e) => setDateTo(e.target.value)} 
+                style={{ width: '150px' }} 
+              />
+              <Button variant="secondary" onClick={handleClearFilters} size="sm">Clear</Button>
+              <Button variant="secondary" onClick={handleExportCSV} size="sm"><Download size={14} /> CSV</Button>
+            </>
+          }
+        />
       </Card>
     </div>
   );

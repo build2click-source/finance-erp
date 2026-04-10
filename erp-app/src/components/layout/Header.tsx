@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Search, Bell, Menu, LayoutDashboard, ChevronRight } from 'lucide-react';
+import { Search, Bell, Menu, LayoutDashboard, ChevronRight, UserCog } from 'lucide-react';
 import { navItems, ViewId } from './Sidebar';
+import { useRole } from '@/lib/hooks/useRole';
 
 interface HeaderProps {
   activeView: ViewId;
@@ -11,6 +12,7 @@ interface HeaderProps {
 
 export function Header({ activeView, onOpenMobileMenu }: HeaderProps) {
   const currentNav = navItems.find((i) => i.id === activeView);
+  const { role, setRole } = useRole();
 
   return (
     <header
@@ -96,6 +98,28 @@ export function Header({ activeView, onOpenMobileMenu }: HeaderProps) {
             }}
           />
         </div>
+
+        {/* Role Toggle */}
+        <button
+          onClick={() => setRole(role === 'admin' ? 'data_entry' : 'admin')}
+          title={`Currently: ${role === 'admin' ? 'Admin' : 'Data Entry'}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            background: role === 'admin' ? 'var(--color-command-navy)' : 'var(--surface-container-high)',
+            color: role === 'admin' ? 'white' : 'var(--text-secondary)',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px 12px',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 600,
+          }}
+        >
+          <UserCog size={16} />
+          {role === 'admin' ? 'Admin' : 'Clerk'}
+        </button>
 
         {/* Notifications */}
         <button

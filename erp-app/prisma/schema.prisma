@@ -4,11 +4,13 @@
 // ============================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["ERP"]
 }
 
 // ============================================================
@@ -21,6 +23,7 @@ model Account {
   code      String   @unique
   name      String
   type      AccountType
+  subType   String?  @map("sub_type")
   currency  String   @default("INR") @db.Char(3)
   isPandL   Boolean  @default(false) @map("is_p_and_l")
   parentId  String?  @map("parent_id") @db.Uuid
@@ -45,6 +48,7 @@ model Account {
 
   @@index([type], map: "idx_accounts_type")
   @@map("accounts")
+  @@schema("ERP")
 }
 
 enum AccountType {
@@ -53,6 +57,8 @@ enum AccountType {
   Equity
   Revenue
   Expense
+
+  @@schema("ERP")
 }
 
 /// Transactions — the container for balanced journal entries
@@ -79,6 +85,7 @@ model Transaction {
   inventoryMovements InventoryMovement[]
 
   @@map("transactions")
+  @@schema("ERP")
 }
 
 /// Journal Entries — individual debit/credit lines
@@ -103,11 +110,14 @@ model JournalEntry {
   @@index([accountId, createdAt], map: "idx_journal_account_posted")
   @@index([transactionId], map: "idx_journal_tx")
   @@map("journal_entries")
+  @@schema("ERP")
 }
 
 enum EntryType {
   Dr
   Cr
+
+  @@schema("ERP")
 }
 
 /// Account Snapshots — month-end balance snapshots for fast queries
@@ -125,6 +135,7 @@ model AccountSnapshot {
 
   @@unique([accountId, periodStart, periodEnd], map: "ux_snapshot_account_period")
   @@map("account_snapshots")
+  @@schema("ERP")
 }
 
 // ============================================================
@@ -136,7 +147,7 @@ model Product {
   id                     String   @id @default(uuid()) @db.Uuid
   sku                    String   @unique
   name                   String
-  hsnCode                String?  @map("hsn_code")
+  hsnCode                String?  @map("hsn_code") // Using existing hsnCode, keeping it here for reference
   defaultUom             String?  @map("default_uom")
   isStocked              Boolean  @default(true) @map("is_stocked")
   defaultIncomeAccountId String?  @map("default_income_account_id") @db.Uuid
@@ -152,11 +163,14 @@ model Product {
   brokerageTrades      Trade[]
 
   @@map("products")
+  @@schema("ERP")
 }
 
 enum GstType {
   CGST_SGST
   IGST
+
+  @@schema("ERP")
 }
 
 /// Cost Layers for FIFO/LIFO inventory costing
@@ -174,6 +188,7 @@ model CostLayer {
 
   @@index([productId, receivedAt], map: "idx_cost_layers_product")
   @@map("cost_layers")
+  @@schema("ERP")
 }
 
 /// Inventory Movements — receipt, issue, transfer, adjustment
@@ -192,6 +207,7 @@ model InventoryMovement {
   transaction  Transaction? @relation(fields: [relatedTxId], references: [id])
 
   @@map("inventory_movements")
+  @@schema("ERP")
 }
 
 enum MovementType {
@@ -199,6 +215,8 @@ enum MovementType {
   issue
   transfer
   adjustment
+
+  @@schema("ERP")
 }
 
 // ============================================================
@@ -221,15 +239,42 @@ model Invoice {
   irn             String?       // Invoice Reference Number from IRP
   qrCode          String?       @map("qr_code")
   ewayBillNo      String?       @map("eway_bill_no")
+  tradeId         String?       @map("trade_id") @db.Uuid
+  cgst            Decimal?      @db.Decimal(18, 2)
+  sgst            Decimal?      @db.Decimal(18, 2)
+  igst            Decimal?      @db.Decimal(18, 2)
+  
+  // Professional Tax Invoice Fields
+  consigneeId     String?       @map("consignee_id") @db.Uuid
+  buyerId         String?       @map("buyer_id") @db.Uuid
+  deliveryNote    String?       @map("delivery_note")
+  deliveryNoteDate DateTime?    @map("delivery_note_date") @db.Date
+  paymentTerms    String?       @map("payment_terms")
+  suppliersRef    String?       @map("suppliers_ref")
+  otherRef        String?       @map("other_ref")
+  buyersOrderNo   String?       @map("buyers_order_no")
+  buyersOrderDate DateTime?     @map("buyers_order_date") @db.Date
+  dispatchDocNo   String?       @map("dispatch_doc_no")
+  dispatchedThrough String?     @map("dispatched_through")
+  destination     String?       @map("destination")
+  termsOfDelivery String?       @map("terms_of_delivery")
+  bankDetails     String?       @map("bank_details")
+  panNo           String?       @map("pan_no")
+
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
 
   // Relations
-  client       Client?       @relation(fields: [clientId], references: [id])
+  client       Client?       @relation("InvoiceClient", fields: [clientId], references: [id])
+  consignee    Client?       @relation("InvoiceConsignee", fields: [consigneeId], references: [id])
+  buyer        Client?       @relation("InvoiceBuyer", fields: [buyerId], references: [id])
+  trade        Trade?        @relation(fields: [tradeId], references: [id])
   lines        InvoiceLine[]
   transactions Transaction[]
+  receipts     Receipt[]
 
   @@index([clientId, date], map: "idx_invoice_client")
   @@map("invoices")
+  @@schema("ERP")
 }
 
 enum InvoiceType {
@@ -237,12 +282,16 @@ enum InvoiceType {
   Proforma
   CreditNote
   DebitNote
+
+  @@schema("ERP")
 }
 
 enum InvoiceStatus {
   draft
   posted
   cancelled
+
+  @@schema("ERP")
 }
 
 /// Invoice line items with HSN, GST, and cost layer references
@@ -253,6 +302,7 @@ model InvoiceLine {
   description  String?
   qty          Decimal  @db.Decimal(18, 4)
   unitPrice    Decimal  @map("unit_price") @db.Decimal(18, 4)
+  per          String?  // Unit of measure (e.g. NOS, BAGS, PCS)
   discount     Decimal  @default(0) @db.Decimal(18, 4)
   lineNet      Decimal  @map("line_net") @db.Decimal(18, 4)
   gstRate      Decimal? @map("gst_rate") @db.Decimal(5, 2)
@@ -266,6 +316,44 @@ model InvoiceLine {
   product Product? @relation(fields: [productId], references: [id])
 
   @@map("invoice_lines")
+  @@schema("ERP")
+}
+
+// ============================================================
+// 4.3.5 EXPENSES (VENDOR BILLS & ITC)
+// ============================================================
+
+/// Vendor Bills to track Input Tax Credit (ITC)
+model VendorBill {
+  id              String         @id @default(uuid()) @db.Uuid
+  vendorId        String         @map("vendor_id") @db.Uuid
+  billNumber      String         @map("bill_number")
+  date            DateTime       @db.Date
+  description     String?
+  totalAmount     Decimal        @map("total_amount") @db.Decimal(18, 2)
+  cgst            Decimal        @default(0) @db.Decimal(18, 2)
+  sgst            Decimal        @default(0) @db.Decimal(18, 2)
+  igst            Decimal        @default(0) @db.Decimal(18, 2)
+  hsnSac          String?        @map("hsn_sac")
+  status          BillStatus     @default(draft)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relations
+  vendor          Client         @relation(fields: [vendorId], references: [id])
+
+  @@unique([vendorId, billNumber])
+  @@index([date, status])
+  @@map("vendor_bills")
+  @@schema("ERP")
+}
+
+enum BillStatus {
+  draft
+  posted
+  paid
+  cancelled
+
+  @@schema("ERP")
 }
 
 // ============================================================
@@ -298,21 +386,27 @@ model Client {
   vendorAccount   Account?        @relation("VendorAccount", fields: [vendorAccountId], references: [id])
   history         ClientHistory[]
   kyc             ClientKyc[]
-  invoices        Invoice[]
+  invoices        Invoice[]       @relation("InvoiceClient")
+  consigneeInvoices Invoice[]     @relation("InvoiceConsignee")
+  buyerInvoices    Invoice[]      @relation("InvoiceBuyer")
   sellerTrades    Trade[]         @relation("SellerTrades")
   buyerTrades     Trade[]         @relation("BuyerTrades")
   receipts        Receipt[]
   payments        Payment[]
   tenures         Tenure[]
+  vendorBills     VendorBill[]
 
   @@index([code, name, gstin], map: "idx_clients_search")
   @@map("clients")
+  @@schema("ERP")
 }
 
 enum ClientType {
   Customer
   Vendor
   Both
+
+  @@schema("ERP")
 }
 
 enum ClientStatus {
@@ -320,6 +414,8 @@ enum ClientStatus {
   active
   onboarded
   inactive
+
+  @@schema("ERP")
 }
 
 /// Client change history — strictly append-only
@@ -335,6 +431,7 @@ model ClientHistory {
   client Client @relation(fields: [clientId], references: [id])
 
   @@map("client_history")
+  @@schema("ERP")
 }
 
 /// KYC document references
@@ -353,12 +450,15 @@ model ClientKyc {
   client Client @relation(fields: [clientId], references: [id])
 
   @@map("client_kyc")
+  @@schema("ERP")
 }
 
 enum KycStatus {
   pending
   verified
   rejected
+
+  @@schema("ERP")
 }
 
 // ============================================================
@@ -386,22 +486,27 @@ model Tenure {
   @@index([clientId], map: "idx_tenures_client")
   @@index([nextBillingDate, status], map: "idx_tenures_next_billing")
   @@map("tenures")
+  @@schema("ERP")
 }
 
 enum TenureFrequency {
   Monthly
   Quarterly
   Annually
+
+  @@schema("ERP")
 }
 
 enum TenureStatus {
   active
   paused
   cancelled
+
+  @@schema("ERP")
 }
 
 // ============================================================
-// 4.5 BANK & RECEIPTS (Phase 6)
+// 4.6 BANK & RECEIPTS (Phase 6)
 // ============================================================
 
 /// Bank accounts mapped to ledger accounts
@@ -422,6 +527,7 @@ model BankAccount {
   payments       Payment[]
 
   @@map("bank_accounts")
+  @@schema("ERP")
 }
 
 /// Incoming payments from clients (settles AR)
@@ -432,19 +538,23 @@ model Receipt {
   clientId         String   @map("client_id") @db.Uuid
   bankAccountId    String   @map("bank_account_id") @db.Uuid
   amount           Decimal  @db.Decimal(18, 2)
+  tdsAmount        Decimal? @map("tds_amount") @db.Decimal(18, 2)
   currency         String   @default("INR") @db.Char(3)
   paymentMode      PaymentMode @map("payment_mode")
   referenceNumber  String?  @map("reference_number") // UTR / Cheque No
   notes            String?
   status           ReceiptStatus @default(posted)
+  invoiceId        String?  @map("invoice_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   // Relations
   client           Client      @relation(fields: [clientId], references: [id])
   bankAccount      BankAccount @relation(fields: [bankAccountId], references: [id])
+  invoice          Invoice?    @relation(fields: [invoiceId], references: [id])
   transactions     Transaction[]
 
   @@map("receipts")
+  @@schema("ERP")
 }
 
 /// Outgoing payments to vendors (settles AP)
@@ -468,6 +578,7 @@ model Payment {
   transactions     Transaction[]
 
   @@map("payments")
+  @@schema("ERP")
 }
 
 enum PaymentMode {
@@ -477,6 +588,8 @@ enum PaymentMode {
   IMPS
   Cheque
   Cash
+
+  @@schema("ERP")
 }
 
 enum ReceiptStatus {
@@ -484,6 +597,8 @@ enum ReceiptStatus {
   posted
   reconciled
   cancelled
+
+  @@schema("ERP")
 }
 
 // ============================================================
@@ -510,6 +625,30 @@ model Trade {
   buyer   Client  @relation("BuyerTrades", fields: [buyerId], references: [id])
   product Product @relation(fields: [productId], references: [id])
 
+  invoices Invoice[]
+
   @@index([date], map: "idx_trades_date")
   @@map("trades")
+  @@schema("ERP")
+}
+
+// ============================================================
+// 5. COMPANY & SYSTEM PREFERENCES
+// ============================================================
+
+model CompanyProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  gstin     String?
+  state     String?
+  city      String?
+  address   String?
+  pincode   String?
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("company_profile")
+  @@schema("ERP")
 }

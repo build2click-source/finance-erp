@@ -25,6 +25,7 @@ export interface InvoiceLineInput {
   description: string;
   qty: number;
   unitPrice: number;
+  per?: string;           // New field
   discount?: number;
   gstRate?: number;
   hsnCode?: string;
@@ -47,6 +48,21 @@ export interface CreateInvoiceInput {
   costingMethod?: 'FIFO' | 'LIFO';
   notes?: string;
   createdBy?: string;
+
+  // New metadata fields
+  consigneeId?: string;
+  buyerId?: string;
+  deliveryNote?: string;
+  deliveryNoteDate?: string;
+  paymentTerms?: string;
+  suppliersRef?: string;
+  otherRef?: string;
+  buyersOrderNo?: string;
+  buyersOrderDate?: string;
+  dispatchDocNo?: string;
+  dispatchedThrough?: string;
+  destination?: string;
+  termsOfDelivery?: string;
 }
 
 export interface PostedInvoiceResult {
@@ -225,6 +241,20 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
       totalAmount: new Prisma.Decimal(totalAmount),
       totalTax: new Prisma.Decimal(totalTax),
       status: 'posted',
+      // Metadata
+      consigneeId: input.consigneeId,
+      buyerId: input.buyerId,
+      deliveryNote: input.deliveryNote,
+      deliveryNoteDate: input.deliveryNoteDate ? new Date(input.deliveryNoteDate) : null,
+      paymentTerms: input.paymentTerms,
+      suppliersRef: input.suppliersRef,
+      otherRef: input.otherRef,
+      buyersOrderNo: input.buyersOrderNo,
+      buyersOrderDate: input.buyersOrderDate ? new Date(input.buyersOrderDate) : null,
+      dispatchDocNo: input.dispatchDocNo,
+      dispatchedThrough: input.dispatchedThrough,
+      destination: input.destination,
+      termsOfDelivery: input.termsOfDelivery,
     },
   });
 
@@ -238,6 +268,7 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
         description: line.description,
         qty: new Prisma.Decimal(line.qty),
         unitPrice: new Prisma.Decimal(line.unitPrice),
+        per: line.per,
         discount: new Prisma.Decimal(line.discount || 0),
         lineNet: new Prisma.Decimal(line.lineNet),
         gstRate: line.gstRate ? new Prisma.Decimal(line.gstRate) : null,

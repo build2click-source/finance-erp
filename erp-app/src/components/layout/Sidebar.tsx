@@ -4,12 +4,14 @@ import React from 'react';
 import {
   Users, FileText, Calendar, ArrowRightLeft,
   BookOpen, Package, Landmark, LayoutDashboard,
-  Receipt, X,
+  Receipt, X, TrendingUp, AlertTriangle, Shield, Settings,
 } from 'lucide-react';
 
 export type ViewId =
   | 'dashboard' | 'clients' | 'data-entry' | 'transactions' | 'receipts'
-  | 'invoices' | 'ledger' | 'products' | 'bank' | 'tenure';
+  | 'invoices' | 'ledger' | 'products' | 'bank' | 'tenure' | 'vendor-bills' | 'gst-reports'
+  | 'trade-summary' | 'financial-reports' | 'outstanding' | 'tax-reports' | 'settings'
+  | 'accounts' | 'payments';
 
 export interface NavItem {
   id: ViewId;
@@ -17,18 +19,64 @@ export interface NavItem {
   icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 }
 
-export const navItems: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'clients', label: 'Clients', icon: Users },
-  { id: 'data-entry', label: 'Data Entry', icon: ArrowRightLeft },
-  { id: 'transactions', label: 'Manual Journals', icon: BookOpen },
-  { id: 'receipts', label: 'Receipts Entry', icon: Receipt },
-  { id: 'invoices', label: 'Sales Invoices', icon: FileText },
-  { id: 'ledger', label: 'Ledger', icon: BookOpen },
-  { id: 'products', label: 'Products', icon: Package },
-  { id: 'bank', label: 'Bank & Reconcile', icon: Landmark },
-  { id: 'tenure', label: 'Billing Tenures', icon: Calendar },
+export interface NavSection {
+  title?: string;
+  items: NavItem[];
+}
+
+export const navSections: NavSection[] = [
+  {
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'clients', label: 'Clients', icon: Users },
+    ],
+  },
+  {
+    title: 'Operations',
+    items: [
+      { id: 'data-entry', label: 'Data Entry', icon: ArrowRightLeft },
+      { id: 'transactions', label: 'Manual Journals', icon: BookOpen },
+      { id: 'receipts', label: 'Receipts Entry', icon: Receipt },
+      { id: 'payments', label: 'Vendor Payments', icon: ArrowRightLeft },
+      { id: 'invoices', label: 'Sales Invoices', icon: FileText },
+      { id: 'trade-summary', label: 'Trade Summary', icon: ArrowRightLeft },
+      { id: 'vendor-bills', label: 'Vendor Bills', icon: Receipt },
+    ],
+  },
+  {
+    title: 'Reports',
+    items: [
+      { id: 'financial-reports', label: 'Financial Reports', icon: TrendingUp },
+      { id: 'outstanding', label: 'Outstanding & Aging', icon: AlertTriangle },
+      { id: 'tax-reports', label: 'Tax & Compliance', icon: Shield },
+      { id: 'gst-reports', label: 'GST Filings (CA)', icon: FileText },
+    ],
+  },
+  {
+    title: 'Accounting',
+    items: [
+      { id: 'accounts', label: 'Chart of Accounts', icon: BookOpen },
+      { id: 'ledger', label: 'Ledger', icon: BookOpen },
+      { id: 'bank', label: 'Bank & Reconcile', icon: Landmark },
+    ],
+  },
+  {
+    title: 'Master Data',
+    items: [
+      { id: 'products', label: 'Products', icon: Package },
+      { id: 'tenure', label: 'Billing Tenures', icon: Calendar },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
+      { id: 'settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
+
+// Flat list for any consumers that need it
+export const navItems: NavItem[] = navSections.flatMap((s) => s.items);
 
 interface SidebarProps {
   activeView: ViewId;
@@ -140,37 +188,51 @@ export function Sidebar({ activeView, onNavigate, isMobileOpen, onCloseMobile }:
             overflowY: 'auto',
           }}
         >
-          {navItems.map((item) => {
-            const isActive = activeView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavigate(item.id)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3)',
-                  padding: '8px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 500,
-                  fontFamily: 'var(--font-data)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all var(--transition-fast)',
-                  backgroundColor: isActive ? 'var(--surface-container-high)' : 'transparent',
-                  color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                }}
-              >
-                <item.icon
-                  size={18}
-                  style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
-                />
-                {item.label}
-              </button>
-            );
-          })}
+          {navSections.map((section, si) => (
+            <React.Fragment key={si}>
+              {section.title && (
+                <p style={{
+                  fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em',
+                  color: 'var(--text-tertiary)', textTransform: 'uppercase',
+                  padding: '12px 12px 4px',
+                  marginTop: si > 0 ? 'var(--space-2)' : 0,
+                }}>
+                  {section.title}
+                </p>
+              )}
+              {section.items.map((item) => {
+                const isActive = activeView === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleNavigate(item.id)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-3)',
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 500,
+                      fontFamily: 'var(--font-data)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)',
+                      backgroundColor: isActive ? 'var(--surface-container-high)' : 'transparent',
+                      color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    <item.icon
+                      size={18}
+                      style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+                    />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          ))}
         </nav>
 
         {/* User Profile Footer */}

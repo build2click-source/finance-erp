@@ -1,0 +1,19 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+
+Error: Prisma schema validation - (validate wasm)
+Error code: P1012
+error: Argument "url" is missing in data source block "db".
+  -->  prisma\schema.prisma:10
+   | 
+ 9 | 
+10 | datasource db {
+
+11 |   provider = "postgresql"
+12 | }
+   | 
+
+Validation Error Count: 1
+[Context: validate]
+
+Prisma CLI Version : 6.4.1

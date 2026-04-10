@@ -268,3 +268,15 @@ erp-app/
 │       ├── snapshots/generate/route.ts
 │       └── trial-balance/route.ts
 ```
+
+---
+
+## Recent Updates
+
+### Manual Journal Entries (Transactions)
+Extended the `TransactionsView.tsx` with a fully dynamic manual `TransactionForm`.
+- **UI:** A seamless slide-in/modal style interface built directly into the existing transaction screen to allow administrators to post arbitrary double-entry manual records.
+- **Validation:** 
+  - Validates total Debits == total Credits perfectly before transmission.
+  - Ensures exactly two or more journal entries exist in a transaction.
+- **API integration:** Sends standard schema using `accountId`, `entryType`, and `amount` to perfectly hook into the core ledger's atomic ledger posting mechanism (`POST /api/transactions`).

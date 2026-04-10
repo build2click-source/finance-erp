@@ -28,6 +28,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   loading?: boolean;
   pageSize?: number;
+  filters?: React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -39,6 +40,7 @@ export function DataTable<T>({
   emptyMessage = 'No results found.',
   loading = false,
   pageSize = 10,
+  filters,
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -135,6 +137,13 @@ export function DataTable<T>({
             }}
           />
         </div>
+
+        {filters && (
+          <div style={{ flex: 1, display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            {filters}
+          </div>
+        )}
+
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
           {filteredData.length} of {data.length} records
         </span>

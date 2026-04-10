@@ -39,6 +39,7 @@ interface ProductsViewProps {
 export function ProductsView({ onNavigate }: ProductsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isMovement, setIsMovement] = useState<'receive' | 'issue' | null>(null);
+  const [typeFilter, setTypeFilter] = useState('all');
 
   const { data: prodResp, loading: prodLoad, revalidate: revProd } = useApi<any>('/api/products');
   const { data: invResp, loading: invLoad, revalidate: revInv } = useApi<any>('/api/inventory');
@@ -63,6 +64,14 @@ export function ProductsView({ onNavigate }: ProductsViewProps) {
       avgCost: inv?.weightedAvgCost || 0,
     };
   });
+
+  const filteredData = React.useMemo(() => {
+    return combinedData.filter((p) => {
+      if (typeFilter === 'stocked') return p.isStocked;
+      if (typeFilter === 'service') return !p.isStocked;
+      return true;
+    });
+  }, [combinedData, typeFilter]);
 
   if (isCreating) {
     return <ProductForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidateAll(); }} />;
@@ -185,8 +194,20 @@ export function ProductsView({ onNavigate }: ProductsViewProps) {
             width: '130px',
           },
         ]}
-        data={combinedData}
+        data={filteredData}
         loading={prodLoad || invLoad}
+        filters={
+          <Select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'All Types' },
+              { value: 'stocked', label: 'Stocked' },
+              { value: 'service', label: 'Service' },
+            ]}
+            style={{ width: '150px' }}
+          />
+        }
         searchPlaceholder="Search by SKU, name, or HSN..."
         renderRowActions={(p: ProductRow) => (
           <button

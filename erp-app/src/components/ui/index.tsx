@@ -87,10 +87,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   required?: boolean;
+  icon?: React.ReactNode;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, required, style, ...props }, ref) => {
+  ({ label, error, required, icon, style, ...props }, ref) => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {label && (
@@ -108,26 +109,34 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {required && <span style={{ color: 'var(--color-danger)', marginLeft: '2px' }}>*</span>}
           </label>
         )}
-        <input
-          ref={ref}
-          style={{
-            display: 'flex',
-            height: '40px',
-            width: '100%',
-            borderRadius: 'var(--radius-md)',
-            border: error ? '1px solid var(--color-danger)' : '1px solid var(--border-default)',
-            backgroundColor: props.disabled ? 'var(--surface-container-low)' : 'var(--surface-container)',
-            padding: '8px 12px',
-            fontSize: 'var(--text-sm)',
-            fontFamily: 'var(--font-data)',
-            color: props.disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
-            transition: 'all var(--transition-fast)',
-            outline: 'none',
-            cursor: props.disabled ? 'not-allowed' : 'text',
-            ...style,
-          }}
-          {...props}
-        />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          {icon && (
+            <div style={{ position: 'absolute', left: '12px', color: 'var(--text-tertiary)', display: 'flex' }}>
+              {icon}
+            </div>
+          )}
+          <input
+            ref={ref}
+            style={{
+              display: 'flex',
+              height: '40px',
+              width: '100%',
+              borderRadius: 'var(--radius-md)',
+              border: error ? '1px solid var(--color-danger)' : '1px solid var(--border-default)',
+              backgroundColor: props.disabled ? 'var(--surface-container-low)' : 'var(--surface-container)',
+              padding: '8px 12px',
+              paddingLeft: icon ? '38px' : '12px',
+              fontSize: 'var(--text-sm)',
+              fontFamily: 'var(--font-data)',
+              color: props.disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
+              transition: 'all var(--transition-fast)',
+              outline: 'none',
+              cursor: props.disabled ? 'not-allowed' : 'text',
+              ...style,
+            }}
+            {...props}
+          />
+        </div>
         {error && (
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', marginTop: '4px' }}>
             {error}

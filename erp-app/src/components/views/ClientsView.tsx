@@ -15,8 +15,19 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   const [viewingClient, setViewingClient] = useState<any>(null);
+  const [importing, setImporting] = useState(false);
+  const [typeFilter, setTypeFilter] = useState('all');
+
   const { data: clientsResp, loading, error, revalidate } = useApi<any>('/api/clients');
   const clients = clientsResp?.data || [];
+
+  const filteredClients = React.useMemo(() => {
+    return clients.filter((c: any) => {
+      if (typeFilter === 'all') return true;
+      if (typeFilter === 'Both') return c.type === 'Both';
+      return c.type === typeFilter;
+    });
+  }, [clients, typeFilter]);
 
   if (isCreating || editingClient) {
     return <ClientForm 
@@ -61,18 +72,58 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
     );
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target?.result as string;
+      const lines = text.split('\n');
+      let importedCount = 0;
+      for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(s => s.trim());
+          if (cols.length >= 2 && cols[0]) {
+             try {
+               await fetch('/api/clients', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    name: cols[0],
+                    type: ['Customer', 'Vendor', 'Both'].includes(cols[1]) ? cols[1] : 'Both',
+                    code: cols[2] || `BL-${Math.floor(Math.random()*10000)}`,
+                    email: cols[3] || 'imported@example.com',
+                    contact: cols[4] || '9999999999',
+                    address: cols[5] || 'Imported Address',
+                    defaultCurrency: 'INR'
+                  })
+               });
+               importedCount++;
+             } catch(err) { console.error('Row failed', err) }
+          }
+      }
+      alert(`CSV Processing Complete: Successfully imported ${importedCount} records.`);
+      setImporting(false);
+      revalidate();
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <PageHeader
         title="Client Management"
         description="Manage all buyer and seller profiles."
         actions={
-          <>
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <Button variant="secondary" onClick={() => onNavigate('dashboard')}>Dashboard</Button>
+            <input type="file" id="csv-upload" accept=".csv" style={{ display: 'none' }} disabled={importing} onChange={handleFileUpload} />
+            <Button variant="secondary" onClick={() => document.getElementById('csv-upload')?.click()}>
+              <FileUp size={16} /> {importing ? 'Importing...' : 'Import CSV'}
+            </Button>
             <Button onClick={() => setIsCreating(true)}>
               <Plus size={16} /> New Client
             </Button>
-          </>
+          </div>
         }
       />
 
@@ -95,8 +146,21 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
           { key: 'type', header: 'Type', render: (c) => <span style={{ color: 'var(--text-secondary)' }}>{c.type}</span> },
           { key: 'gstin', header: 'GSTIN', render: (c) => <span className="font-technical" style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>{c.gstin || '—'}</span> },
         ]}
-        data={clients || []}
+        data={filteredClients}
         loading={loading}
+        filters={
+          <Select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[
+              { value: 'all', label: 'All Types' },
+              { value: 'Customer', label: 'Customers (Buyers)' },
+              { value: 'Vendor', label: 'Vendors (Sellers)' },
+              { value: 'Both', label: 'Both' },
+            ]}
+            style={{ width: '200px' }}
+          />
+        }
         searchPlaceholder="Search by name, code, or GSTIN..."
         renderRowActions={(c: any) => (
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>

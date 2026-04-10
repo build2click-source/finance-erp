@@ -12,49 +12,54 @@ const SettlementSchema = z.object({
   paymentMode: z.enum(['UPI', 'NEFT', 'RTGS', 'IMPS', 'Cheque', 'Cash']),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),
-  // For simplicity from UI, we need the Ledger accounts
-  ledgerAccountId: z.string().uuid('AR or AP Ledger Account ID is required'),
+  tdsAmount: z.number().optional(),
+  invoiceId: z.string().uuid().optional().or(z.literal('')), // Optional or empty string
+  status: z.enum(['draft', 'posted']).optional(),
+  // For simplicity from UI, we no longer require Ledger accounts passed from UI
 });
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
-    
-    let dbRecords: any[] = [];
-    
+    const limit = parseInt(searchParams.get('limit') || '100');
+    const page = parseInt(searchParams.get('page') || '1');
+    const skip = (page - 1) * limit;
+
+    let receipts: any[] = [];
+    let total = 0;
+
     if (!type || type === 'receipt') {
-      const receipts = await prisma.receipt.findMany({
-        include: { client: true, bankAccount: true },
-        orderBy: { date: 'desc' }
-      });
-      dbRecords = [...dbRecords, ...receipts.map(r => ({ ...r, documentType: 'Receipt', recordId: `RCT-${r.receiptNumber}` }))];
+      const [rows, count] = await Promise.all([
+        prisma.receipt.findMany({
+          include: {
+            client: { select: { id: true, name: true } },
+            bankAccount: { select: { id: true, bankName: true, accountNumber: true } },
+            invoice: { select: { id: true, invoiceNumber: true } },
+          },
+          orderBy: { date: 'desc' },
+          take: limit,
+          skip,
+        }),
+        prisma.receipt.count(),
+      ]);
+      total = count;
+      receipts = rows.map(r => ({
+        ...r,
+        transactionDate: r.date, // alias for view compatibility
+        amount: Number(r.amount),
+        tdsAmount: r.tdsAmount ? Number(r.tdsAmount) : null,
+        documentType: 'Receipt',
+      }));
     }
-    
-    if (!type || type === 'payment') {
-      const payments = await prisma.payment.findMany({
-        include: { client: true, bankAccount: true },
-        orderBy: { date: 'desc' }
-      });
-      dbRecords = [...dbRecords, ...payments.map(p => ({ ...p, documentType: 'Payment', recordId: `PAY-${p.paymentNumber}` }))];
-    }
-    
-    // Transform to match ReceiptsView mock standard
-    const formatted = dbRecords.map(doc => ({
-      id: doc.recordId,
-      date: doc.date.toISOString().split('T')[0],
-      client: doc.client.name,
-      type: doc.documentType,
-      amount: doc.amount,
-      mode: doc.paymentMode,
-      reference: doc.referenceNumber || '-',
-      status: doc.status.charAt(0).toUpperCase() + doc.status.slice(1),
-    }));
 
-    // Sort combined by date descending
-    formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    return NextResponse.json(formatted);
+    return NextResponse.json({
+      success: true,
+      data: receipts,
+      total,
+      page,
+      limit,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -72,6 +77,15 @@ export async function POST(req: Request) {
     const data = result.data;
     let postedResult;
 
+    // Look up AR and AP ledger accounts
+    const allAccounts = await prisma.account.findMany();
+    const arAccount = allAccounts.find(a => a.name.includes('Receivable')) || allAccounts[0];
+    const apAccount = allAccounts.find(a => a.name.includes('Payable')) || allAccounts[0];
+
+    if (!arAccount || !apAccount) {
+      return NextResponse.json({ error: 'Ledger accounts not initialized' }, { status: 500 });
+    }
+
     if (data.type === 'receipt') {
       const input: CreateReceiptInput = {
         clientId: data.clientId,
@@ -81,8 +95,11 @@ export async function POST(req: Request) {
         paymentMode: data.paymentMode,
         referenceNumber: data.referenceNumber,
         notes: data.notes,
-        arAccountId: data.ledgerAccountId,
+        tdsAmount: data.tdsAmount,
+        invoiceId: data.invoiceId || undefined,
+        arAccountId: arAccount.id,
         createdBy: undefined, // Add auth later
+        status: data.status,
       };
       postedResult = await postReceipt(input);
     } else {
@@ -94,7 +111,7 @@ export async function POST(req: Request) {
         paymentMode: data.paymentMode,
         referenceNumber: data.referenceNumber,
         notes: data.notes,
-        apAccountId: data.ledgerAccountId,
+        apAccountId: apAccount.id,
         createdBy: undefined,
       };
       postedResult = await postPayment(input);

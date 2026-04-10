@@ -24,7 +24,10 @@ export interface CreateReceiptInput {
   notes?: string;
   // Account config for journal posting
   arAccountId: string; // The Accounts Receivable account to credit
+  tdsAmount?: number;
+  invoiceId?: string;
   createdBy?: string;
+  status?: 'draft' | 'posted';
 }
 
 export interface CreatePaymentInput {
@@ -94,29 +97,35 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
 
   const receiptId = uuidv4();
   const receiptNumber = await generateDocumentNumber('receipt', input.date);
+  const isDraft = input.status === 'draft';
 
-  // Journal setup: Dr Bank / Cr Accounts Receivable
-  const journalLines: JournalLine[] = [
-    {
-      accountId: bank.accountId,
-      amount: input.amount, // Positive = Dr
-      entryType: 'Dr',
-    },
-    {
-      accountId: input.arAccountId,
-      amount: -input.amount, // Negative = Cr
-      entryType: 'Cr',
-    }
-  ];
+  let transactionId = '';
 
-  // Atomic transaction
-  const txResult = await createTransaction({
-    description: `Receipt ${receiptNumber} via ${input.paymentMode}${input.referenceNumber ? ` (Ref: ${input.referenceNumber})` : ''}`,
-    metadata: { receiptId },
-    createdBy: input.createdBy,
-    lines: journalLines,
-    postImmediately: true,
-  });
+  if (!isDraft) {
+    // Journal setup: Dr Bank / Cr Accounts Receivable
+    const journalLines: JournalLine[] = [
+      {
+        accountId: bank.accountId,
+        amount: input.amount, // Positive = Dr
+        entryType: 'Dr',
+      },
+      {
+        accountId: input.arAccountId,
+        amount: -input.amount, // Negative = Cr
+        entryType: 'Cr',
+      }
+    ];
+
+    // Atomic transaction
+    const txResult = await createTransaction({
+      description: `Receipt ${receiptNumber} via ${input.paymentMode}${input.referenceNumber ? ` (Ref: ${input.referenceNumber})` : ''}`,
+      metadata: { receiptId },
+      createdBy: input.createdBy,
+      lines: journalLines,
+      postImmediately: true,
+    });
+    transactionId = txResult.transactionId;
+  }
 
   await prisma.receipt.create({
     data: {
@@ -126,17 +135,46 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
       clientId: input.clientId,
       bankAccountId: input.bankAccountId,
       amount: new Prisma.Decimal(input.amount),
+      tdsAmount: input.tdsAmount ? new Prisma.Decimal(input.tdsAmount) : null,
       paymentMode: input.paymentMode,
       referenceNumber: input.referenceNumber,
       notes: input.notes,
-      status: 'posted',
+      status: isDraft ? 'draft' : 'posted',
+      invoiceId: input.invoiceId,
     },
   });
+
+  // ── Invoice Settlement ────────────────────────────────────────────────
+  // If this receipt is linked to an invoice and is posted, check if the
+  // invoice is now fully settled (receipt amount >= 95% of invoice total).
+  // If so, mark the invoice as 'cancelled' (the only "terminal" status
+  // in the schema that removes it from AR — pending a paid status migration).
+  if (!isDraft && input.invoiceId) {
+    try {
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: input.invoiceId },
+        select: { totalAmount: true, status: true },
+      });
+      if (invoice && invoice.status === 'posted') {
+        const invoiceTotal = Number(invoice.totalAmount);
+        const grossReceived = input.amount + (input.tdsAmount || 0);
+        if (grossReceived >= invoiceTotal * 0.95) {
+          await prisma.invoice.update({
+            where: { id: input.invoiceId },
+            data: { status: 'cancelled' }, // 'cancelled' = fully settled/paid in current schema
+          });
+        }
+      }
+    } catch (err) {
+      // Non-fatal — log but don't fail the receipt posting
+      console.warn('Invoice settlement update failed:', err);
+    }
+  }
 
   return {
     id: receiptId,
     documentNumber: receiptNumber,
-    transactionId: txResult.transactionId,
+    transactionId: transactionId,
     amount: input.amount,
   };
 }

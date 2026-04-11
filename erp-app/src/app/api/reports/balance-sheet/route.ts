@@ -6,9 +6,13 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getBalancesByType } from '@/lib/ledger/balance';
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { searchParams } = new URL(request.url);
     const asOfParam = searchParams.get('asOf');
     const asOf = asOfParam ? new Date(asOfParam) : new Date();

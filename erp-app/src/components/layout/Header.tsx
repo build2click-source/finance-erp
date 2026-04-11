@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Bell, Menu, LayoutDashboard, ChevronRight, UserCog } from 'lucide-react';
+import { Search, Bell, Menu, LayoutDashboard, ChevronRight, LogOut } from 'lucide-react';
 import { navItems, ViewId } from './Sidebar';
 import { useRole } from '@/lib/hooks/useRole';
 
@@ -10,9 +10,16 @@ interface HeaderProps {
   onOpenMobileMenu: () => void;
 }
 
+const ROLE_BADGE: Record<string, { label: string; bg: string; color: string }> = {
+  admin: { label: 'Admin', bg: 'rgba(59,106,219,0.15)', color: '#6aadff' },
+  accountant: { label: 'Accountant', bg: 'rgba(90,138,94,0.15)', color: '#82c987' },
+  data_entry: { label: 'Clerk', bg: 'rgba(180,160,80,0.15)', color: '#d4b94a' },
+};
+
 export function Header({ activeView, onOpenMobileMenu }: HeaderProps) {
   const currentNav = navItems.find((i) => i.id === activeView);
-  const { role, setRole } = useRole();
+  const { user, role, logout } = useRole();
+  const badge = ROLE_BADGE[role] ?? ROLE_BADGE['data_entry'];
 
   return (
     <header
@@ -99,27 +106,29 @@ export function Header({ activeView, onOpenMobileMenu }: HeaderProps) {
           />
         </div>
 
-        {/* Role Toggle */}
-        <button
-          onClick={() => setRole(role === 'admin' ? 'data_entry' : 'admin')}
-          title={`Currently: ${role === 'admin' ? 'Admin' : 'Data Entry'}`}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-            background: role === 'admin' ? 'var(--color-command-navy)' : 'var(--surface-container-high)',
-            color: role === 'admin' ? 'white' : 'var(--text-secondary)',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px 12px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--text-xs)',
-            fontWeight: 600,
-          }}
-        >
-          <UserCog size={16} />
-          {role === 'admin' ? 'Admin' : 'Clerk'}
-        </button>
+        {/* User + role badge */}
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <span style={{
+              fontSize: 'var(--text-sm)',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              maxWidth: '140px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {user.displayName}
+            </span>
+            <span style={{
+              fontSize: '11px', fontWeight: 600, padding: '2px 8px',
+              borderRadius: '999px', backgroundColor: badge.bg, color: badge.color,
+              letterSpacing: '0.03em',
+            }}>
+              {badge.label}
+            </span>
+          </div>
+        )}
 
         {/* Notifications */}
         <button
@@ -145,6 +154,38 @@ export function Header({ activeView, onOpenMobileMenu }: HeaderProps) {
               border: '2px solid var(--surface-container)',
             }}
           />
+        </button>
+
+        {/* Logout */}
+        <button
+          id="header-logout-btn"
+          onClick={logout}
+          title="Sign out"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'none',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--text-tertiary)',
+            cursor: 'pointer',
+            padding: '4px 10px',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 500,
+            transition: 'all var(--transition-fast)',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = 'var(--color-danger)';
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-danger)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)';
+            (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+          }}
+        >
+          <LogOut size={14} />
+          Sign out
         </button>
       </div>
     </header>

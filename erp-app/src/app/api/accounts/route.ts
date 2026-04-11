@@ -6,10 +6,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 // GET — List accounts with optional type filter
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
 
@@ -48,6 +52,9 @@ const CreateAccountSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const parsed = CreateAccountSchema.parse(body);
 

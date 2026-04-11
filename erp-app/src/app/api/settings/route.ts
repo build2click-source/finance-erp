@@ -8,6 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 function parsePrefs(notes: string | null) {
   if (!notes) return { invoicePrefix: 'INV', invoiceStartNo: '001', footerNote: '', bankDetails: '' };
@@ -18,8 +19,11 @@ function parsePrefs(notes: string | null) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
+
     let profile = await prisma.companyProfile.findFirst({
       orderBy: { createdAt: 'asc' },
     });
@@ -56,6 +60,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const {
       name,

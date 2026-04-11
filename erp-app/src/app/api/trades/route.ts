@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const TradeSchema = z.object({
   date: z.string(),
@@ -17,6 +18,9 @@ const TradeSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '100');
     const clientId = searchParams.get('clientId');
@@ -57,6 +61,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const parsed = TradeSchema.parse(body);
 

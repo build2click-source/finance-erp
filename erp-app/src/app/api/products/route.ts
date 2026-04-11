@@ -6,10 +6,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 // GET — List products with optional filters
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(request.url);
     const stocked = searchParams.get('stocked'); // 'true' | 'false'
     const search = searchParams.get('search');
@@ -62,6 +65,8 @@ const CreateProductSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const body = await request.json();
     const parsed = CreateProductSchema.parse(body);
 

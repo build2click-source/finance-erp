@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const VendorBillSchema = z.object({
   vendorId: z.string().uuid(),
@@ -14,8 +15,10 @@ const VendorBillSchema = z.object({
   hsnSac: z.string().optional(),
 });
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const bills = await prisma.vendorBill.findMany({
       include: {
         vendor: {
@@ -31,8 +34,10 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const json = await req.json();
     const result = VendorBillSchema.safeParse(json);
     

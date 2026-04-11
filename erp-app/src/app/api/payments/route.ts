@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { postPayment, CreatePaymentInput } from '@/lib/banking';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const PaymentSchema = z.object({
   clientId: z.string().uuid(),
@@ -20,6 +21,8 @@ const PaymentSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '50');
     const page = parseInt(searchParams.get('page') || '1');
@@ -54,6 +57,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const json = await req.json();
     const result = PaymentSchema.safeParse(json);
 

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+// Prisma client initialization
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 

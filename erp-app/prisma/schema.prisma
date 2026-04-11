@@ -4,8 +4,7 @@
 // ============================================================
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["multiSchema"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -654,3 +653,44 @@ model CompanyProfile {
   @@map("company_profile")
   @@schema("ERP")
 }
+
+// ============================================================
+// 6. USERS & ACCESS CONTROL (RBAC)
+// ============================================================
+
+enum AppRole {
+  admin
+  accountant
+  data_entry
+
+  @@schema("ERP")
+}
+
+/// System users with role-based access control
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  displayName  String   @map("display_name")
+  email        String?  @unique
+  passwordHash String   @map("password_hash")
+  role         AppRole  @default(data_entry)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("users")
+  @@schema("ERP")
+}
+
+/// Dynamic policies for each role
+model SystemPolicy {
+  id           String   @id @default(uuid()) @db.Uuid
+  role         AppRole  @unique
+  permissions  Json     // { canManageLedger: boolean, ... }
+  allowedViews Json     // string[]
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("system_policies")
+  @@schema("ERP")
+}
+

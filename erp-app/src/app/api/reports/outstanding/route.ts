@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
 function agingBucket(dueDate: Date | null, today: Date): '0-30' | '31-60' | '61-90' | '90+' | 'current' {
   if (!dueDate) return 'current';
@@ -23,6 +24,8 @@ function agingBucket(dueDate: Date | null, today: Date): '0-30' | '31-60' | '61-
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(request.url);
     const typeFilter = searchParams.get('type') || 'all';
     const today = new Date();

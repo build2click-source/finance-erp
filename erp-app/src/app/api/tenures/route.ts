@@ -5,10 +5,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 // GET — List tenures
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
@@ -50,6 +53,8 @@ const CreateTenureSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const body = await request.json();
     const parsed = CreateTenureSchema.parse(body);
 

@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const BankAccountSchema = z.object({
   bankName: z.string().min(1, 'Bank name is required'),
@@ -12,8 +13,10 @@ const BankAccountSchema = z.object({
   accountId: z.string().uuid('Valid Ledger Account ID required'),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const banks = await prisma.bankAccount.findMany({
       include: {
         account: {
@@ -40,8 +43,11 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const json = await req.json();
     const result = BankAccountSchema.safeParse(json);
 

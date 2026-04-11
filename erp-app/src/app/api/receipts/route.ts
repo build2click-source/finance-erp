@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { postReceipt, postPayment, CreateReceiptInput, CreatePaymentInput } from '@/lib/banking';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const SettlementSchema = z.object({
   type: z.enum(['receipt', 'payment']),
@@ -18,8 +19,10 @@ const SettlementSchema = z.object({
   // For simplicity from UI, we no longer require Ledger accounts passed from UI
 });
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -65,8 +68,10 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if (authResult instanceof NextResponse) return authResult;
     const json = await req.json();
     const result = SettlementSchema.safeParse(json);
 

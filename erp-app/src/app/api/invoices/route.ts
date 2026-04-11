@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { postInvoice, InvoicingError } from '@/lib/invoicing';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 const InvoiceLineSchema = z.object({
   productId: z.string().uuid().optional(),
@@ -38,6 +39,9 @@ const PostInvoiceSchema = z.object({
 // POST — Post an invoice atomically
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const parsed = PostInvoiceSchema.parse(body);
 
@@ -68,6 +72,9 @@ export async function POST(request: NextRequest) {
 // GET — List invoices
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const clientId = searchParams.get('clientId');

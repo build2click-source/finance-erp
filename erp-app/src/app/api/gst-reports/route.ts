@@ -1,8 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuth } from '@/lib/auth';
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const { searchParams } = new URL(req.url);
     const monthStr = searchParams.get('month'); // YYYY-MM
     

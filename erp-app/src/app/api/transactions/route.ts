@@ -6,8 +6,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createTransaction, PostingError } from '@/lib/ledger';
 import { z } from 'zod';
+import { requireAuth } from '@/lib/auth';
 
 // POST — Create a new ledger transaction with balanced journal entries
+// ... (omitting schema for brevity, will include in TargetContent)
 const JournalLineSchema = z.object({
   accountId: z.string().uuid(),
   amount: z.number().refine((n) => n !== 0, 'Amount must be non-zero'),
@@ -29,6 +31,9 @@ const CreateTransactionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
     const parsed = CreateTransactionSchema.parse(body);
 
@@ -59,6 +64,9 @@ export async function POST(request: NextRequest) {
 // GET — List transactions with optional filters
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);

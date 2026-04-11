@@ -6,6 +6,7 @@ import {
   BookOpen, Package, Landmark, LayoutDashboard,
   Receipt, X, TrendingUp, AlertTriangle, Shield, Settings,
 } from 'lucide-react';
+import { useRole } from '@/lib/hooks/useRole';
 
 export type ViewId =
   | 'dashboard' | 'clients' | 'data-entry' | 'transactions' | 'receipts'
@@ -85,11 +86,40 @@ interface SidebarProps {
   onCloseMobile: () => void;
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Administrator',
+  accountant: 'Accountant',
+  data_entry: 'Data Entry Clerk',
+};
+
+const ROLE_COLOR: Record<string, string> = {
+  admin: 'var(--color-command-navy)',
+  accountant: '#5a8a5e',
+  data_entry: '#7a6a3a',
+};
+
 export function Sidebar({ activeView, onNavigate, isMobileOpen, onCloseMobile }: SidebarProps) {
+  const { user, role, allowedViews } = useRole();
+
   const handleNavigate = (view: ViewId) => {
     onNavigate(view);
     onCloseMobile();
   };
+
+  // Filter sections/items to only those the current role can access
+  const filteredSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => allowedViews.includes(item.id)),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const initials = (user?.displayName ?? 'U')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <>
@@ -188,7 +218,7 @@ export function Sidebar({ activeView, onNavigate, isMobileOpen, onCloseMobile }:
             overflowY: 'auto',
           }}
         >
-          {navSections.map((section, si) => (
+          {filteredSections.map((section, si) => (
             <React.Fragment key={si}>
               {section.title && (
                 <p style={{
@@ -249,17 +279,17 @@ export function Sidebar({ activeView, onNavigate, isMobileOpen, onCloseMobile }:
                 width: '32px',
                 height: '32px',
                 borderRadius: 'var(--radius-full)',
-                backgroundColor: 'var(--surface-container-high)',
+                backgroundColor: ROLE_COLOR[role] ?? 'var(--surface-container-high)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
                 fontSize: 'var(--text-xs)',
-                color: 'var(--text-secondary)',
+                color: 'white',
                 flexShrink: 0,
               }}
             >
-              AD
+              {initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p
@@ -272,9 +302,11 @@ export function Sidebar({ activeView, onNavigate, isMobileOpen, onCloseMobile }:
                   whiteSpace: 'nowrap',
                 }}
               >
-                Admin User
+                {user?.displayName ?? 'Loading...'}
               </p>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>admin@company.com</p>
+              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' }}>
+                {ROLE_LABEL[role] ?? role}
+              </p>
             </div>
           </div>
         </div>

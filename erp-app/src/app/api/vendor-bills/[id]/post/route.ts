@@ -1,9 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createTransaction } from '@/lib/ledger';
+import { requireAuth } from '@/lib/auth';
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const authResult = await requireAuth(req, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
     const { id } = await params;
     const bill = await prisma.vendorBill.findUnique({
       where: { id },

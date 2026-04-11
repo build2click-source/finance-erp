@@ -263,6 +263,7 @@ model Invoice {
   dueDate         DateTime?     @map("due_date") @db.Date
 
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   // Relations
   client       Client?       @relation("InvoiceClient", fields: [clientId], references: [id])
@@ -338,9 +339,11 @@ model VendorBill {
   hsnSac          String?        @map("hsn_sac")
   status          BillStatus     @default(draft)
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   // Relations
   vendor          Client         @relation(fields: [vendorId], references: [id])
+  payments        Payment[]
 
   @@unique([vendorId, billNumber])
   @@index([date, status])
@@ -502,6 +505,7 @@ enum TenureStatus {
   active
   paused
   cancelled
+  completed
 
   @@schema("ERP")
 }
@@ -547,6 +551,7 @@ model Receipt {
   status           ReceiptStatus @default(posted)
   invoiceId        String?  @map("invoice_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   // Relations
   client           Client      @relation(fields: [clientId], references: [id])
@@ -571,12 +576,15 @@ model Payment {
   referenceNumber  String?  @map("reference_number") // UTR / Cheque No
   notes            String?
   status           ReceiptStatus @default(posted)
+  vendorBillId     String?  @map("vendor_bill_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   // Relations
   client           Client      @relation(fields: [clientId], references: [id])
   bankAccount      BankAccount @relation(fields: [bankAccountId], references: [id])
   transactions     Transaction[]
+  vendorBill       VendorBill? @relation(fields: [vendorBillId], references: [id])
 
   @@map("payments")
   @@schema("ERP")
@@ -620,6 +628,7 @@ model Trade {
   commissionRate  Decimal  @map("commission_rate") @db.Decimal(18, 2) // '@'
   commissionAmt   Decimal  @map("commission_amount") @db.Decimal(18, 2) // 'AMOUNT'
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   // Relations
   seller  Client  @relation("SellerTrades", fields: [sellerId], references: [id])

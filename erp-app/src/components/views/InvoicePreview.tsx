@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { PageHeader, Button } from '@/components/ui';
 import { useApi } from '@/lib/hooks/useApi';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { amountToWords } from '@/lib/utils/number-to-words';
 
 interface InvoicePreviewProps {

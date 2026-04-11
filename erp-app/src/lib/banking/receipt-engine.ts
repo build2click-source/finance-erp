@@ -40,6 +40,7 @@ export interface CreatePaymentInput {
   notes?: string;
   // Account config for journal posting
   apAccountId: string; // The Accounts Payable account to debit
+  vendorBillId?: string;
   createdBy?: string;
 }
 
@@ -230,9 +231,31 @@ export async function postPayment(input: CreatePaymentInput): Promise<PostedSett
       paymentMode: input.paymentMode,
       referenceNumber: input.referenceNumber,
       notes: input.notes,
+      vendorBillId: input.vendorBillId,
       status: 'posted',
     },
   });
+
+  // ── Vendor Bill Settlement ──────────────────────────────────────────────
+  if (input.vendorBillId) {
+    try {
+      const bill = await prisma.vendorBill.findUnique({
+        where: { id: input.vendorBillId },
+        select: { totalAmount: true, status: true },
+      });
+      if (bill && bill.status === 'posted') {
+        const billTotal = Number(bill.totalAmount);
+        if (input.amount >= billTotal * 0.95) {
+           await prisma.vendorBill.update({
+             where: { id: input.vendorBillId },
+             data: { status: 'paid' },
+           });
+        }
+      }
+    } catch (err) {
+      console.warn('Vendor bill settlement update failed:', err);
+    }
+  }
 
   return {
     id: paymentId,

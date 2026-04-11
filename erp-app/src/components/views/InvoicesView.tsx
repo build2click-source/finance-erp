@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select, Textarea } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 import { useRole } from '@/lib/hooks/useRole';
@@ -115,12 +115,11 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
       />
 
       <Card>
-        {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading invoices...</div>
-        ) : error ? (
+        {error ? (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--error)' }}>Error loading invoices.</div>
         ) : (
           <DataTable 
+            loading={loading}
             columns={columns} 
             data={filteredInvoices} 
             filters={

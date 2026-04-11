@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       paymentMode: data.paymentMode,
       referenceNumber: data.referenceNumber,
       notes: data.notes,
+      vendorBillId: data.vendorBillId,
       apAccountId: apAccount.id,
     };
 

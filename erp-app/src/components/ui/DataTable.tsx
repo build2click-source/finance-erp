@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Card, Button } from './index';
+import { Card, Button, SkeletonTable } from './index';
 
 /* ============================================================
    DATA TABLE COMPONENT
@@ -189,8 +189,8 @@ export function DataTable<T>({
               ))
             ) : loading ? (
               <tr>
-                <td colSpan={columns.length + (renderRowActions ? 1 : 0)} style={{ padding: 'var(--space-10)', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                  Loading data...
+                <td colSpan={columns.length + (renderRowActions ? 1 : 0)} style={{ padding: 'var(--space-6)' }}>
+                  <SkeletonTable cols={columns.length + (renderRowActions ? 1 : 0)} rows={5} />
                 </td>
               </tr>
             ) : (

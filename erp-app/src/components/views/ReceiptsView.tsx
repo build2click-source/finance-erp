@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 

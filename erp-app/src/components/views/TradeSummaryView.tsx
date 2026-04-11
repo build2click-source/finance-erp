@@ -4,9 +4,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Printer, MessageSquare, Mail, Calendar, Filter } from 'lucide-react';
 import { PageHeader, Button, Card, Input, Select, Badge } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { useApi } from '@/lib/hooks/useApi';
 import { InvoicePreview } from './InvoicePreview';
+import { TradeBulkUploadModal } from './TradeBulkUploadModal';
 
 export function TradeSummaryView() {
   const { data: clientsData } = useApi<any>('/api/clients');
@@ -18,6 +19,7 @@ export function TradeSummaryView() {
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
   const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
   const [showDraftBill, setShowDraftBill] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   
   const [period, setPeriod] = useState<'custom' | 'month' | 'quarter' | 'half' | 'year'>('month');
   const [fromDate, setFromDate] = useState('');
@@ -52,14 +54,14 @@ export function TradeSummaryView() {
   }, [period]);
 
   const fetchUrl = useMemo(() => {
-    if (!selectedClientId) return null;
+    if (!selectedClientId) return '/api/trades?limit=100'; // If no client, fetch latest
     let url = `/api/trades?clientId=${selectedClientId}`;
     if (fromDate) url += `&fromDate=${fromDate}`;
     if (toDate) url += `&toDate=${toDate}`;
     return url;
   }, [selectedClientId, fromDate, toDate]);
 
-  const { data: tradesResp, loading } = useApi<any>(fetchUrl || '');
+  const { data: tradesResp, loading, revalidate } = useApi<any>(fetchUrl || '');
   const trades = tradesResp?.data || [];
 
   const filteredClients = useMemo(() => {
@@ -113,11 +115,18 @@ export function TradeSummaryView() {
       <PageHeader
         title="Trade Summary"
         description="Comprehensive report of Buy & Sell trades for a specific client."
-        actions={selectedTradeIds.size > 0 && (
-          <Button onClick={() => setShowDraftBill(true)}>
-            Generate Draft Bill ({selectedTradeIds.size})
-          </Button>
-        )}
+        actions={
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <Button variant="secondary" onClick={() => setShowUploadModal(true)}>
+              Upload CSV
+            </Button>
+            {selectedTradeIds.size > 0 && (
+              <Button onClick={() => setShowDraftBill(true)}>
+                Generate Draft Bill ({selectedTradeIds.size})
+              </Button>
+            )}
+          </div>
+        }
       />
 
       <Card>
@@ -274,6 +283,15 @@ export function TradeSummaryView() {
             </table>
         </Card>
       )}
+
+      <TradeBulkUploadModal 
+        open={showUploadModal} 
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={() => {
+          setShowUploadModal(false);
+          revalidate();
+        }}
+      />
     </div>
   );
 }

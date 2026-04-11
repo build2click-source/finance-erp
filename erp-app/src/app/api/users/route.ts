@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth, hashPassword } from '@/lib/auth';
+import { z } from 'zod';
+
+const CreateUserSchema = z.object({
+  username: z.string().min(2).max(40).regex(/^[a-z0-9._-]+$/, 'Lowercase letters, numbers, . _ - only'),
+  displayName: z.string().min(1).max(80),
+  email: z.string().email().optional().or(z.literal('')),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: z.enum(['admin', 'accountant', 'data_entry']).default('data_entry'),
+});
 
 // GET /api/users — list all users (admin only)
 export async function GET(req: NextRequest) {
@@ -30,20 +39,12 @@ export async function POST(req: NextRequest) {
   if (authResult instanceof NextResponse) return authResult;
 
   try {
-    const { username, displayName, email, password, role } = await req.json();
-
-    if (!username || !displayName || !password) {
-      return NextResponse.json({ error: 'username, displayName, and password are required' }, { status: 400 });
+    const body = await req.json();
+    const parsed = CreateUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Validation failed', issues: parsed.error.issues }, { status: 400 });
     }
-
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
-    }
-
-    const validRoles = ['admin', 'accountant', 'data_entry'];
-    if (role && !validRoles.includes(role)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
-    }
+    const { username, displayName, email, password, role } = parsed.data;
 
     const passwordHash = await hashPassword(password);
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
         displayName,
         email: email || null,
         passwordHash,
-        role: role || 'data_entry',
+        role,
       },
       select: {
         id: true,

@@ -3,7 +3,7 @@
 import React from 'react';
 import { ArrowRightLeft, Users, Landmark, Wallet, Plus, FileText, Receipt, ChevronRight, TrendingUp, AlertTriangle, Shield } from 'lucide-react';
 import { Card, StatCard, PageHeader, Button } from '@/components/ui';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 
@@ -30,9 +30,19 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     return invoices.filter((i: any) => new Date(i.date) >= cutoff);
   }, [invoices, dateRange]);
   
+  const getCutoff = () => {
+    const now = new Date();
+    const cutoff = new Date();
+    if (dateRange === '30') cutoff.setDate(now.getDate() - 30);
+    else if (dateRange === 'quarter') cutoff.setMonth(now.getMonth() - 3);
+    else cutoff.setFullYear(now.getFullYear() - 1);
+    return cutoff;
+  };
+  const cutoff = React.useMemo(getCutoff, [dateRange]);
+
   const pendingReceivables = filteredInvoices.filter((i: any) => i.status !== 'Paid' && i.status !== 'Cancelled').reduce((sum: number, i: any) => sum + Number(i.totalAmount), 0);
-  const totalReceipts = receipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
-  const activeClients = clients.filter((c: any) => c.status === 'active').length;
+  const totalReceipts = receipts.filter((r: any) => new Date(r.date) >= cutoff).reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+  const activeClients = clients.filter((c: any) => c.status === 'active' && new Date(c.createdAt) >= cutoff).length;
   
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>

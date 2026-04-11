@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Plus, ArrowUpRight } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 import { useToast } from '@/lib/hooks/useToast';
@@ -136,8 +136,10 @@ export function PaymentsView({ onNavigate }: PaymentsViewProps) {
 function PaymentForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
   const { data: clientsResp } = useApi<any>('/api/clients');
   const { data: banksResp } = useApi<any>('/api/banks');
+  const { data: billsResp } = useApi<any>('/api/vendor-bills');
   const vendors = (clientsResp?.data || []).filter((c: any) => c.type === 'Vendor' || c.type === 'Both');
   const banks = banksResp?.data || [];
+  const pendingBills = (billsResp?.data || []).filter((b: any) => b.status === 'posted');
   const { success, error } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -148,7 +150,24 @@ function PaymentForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
     paymentMode: 'NEFT',
     referenceNumber: '',
     notes: '',
+    vendorBillId: '',
   });
+
+  const handleBillSelect = (billId: string) => {
+    if (!billId) {
+      setForm({ ...form, vendorBillId: '' });
+      return;
+    }
+    const bill = pendingBills.find((b: any) => b.id === billId);
+    if (bill) {
+      setForm({
+        ...form,
+        vendorBillId: billId,
+        clientId: bill.vendorId,
+        amount: String(bill.totalAmount),
+      });
+    }
+  };
 
   const handleSave = async () => {
     if (!form.clientId || !form.bankAccountId || !form.amount) {
@@ -168,6 +187,7 @@ function PaymentForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
           paymentMode: form.paymentMode,
           referenceNumber: form.referenceNumber || undefined,
           notes: form.notes || undefined,
+          vendorBillId: form.vendorBillId || undefined,
         }),
       });
       if (!res.ok) {
@@ -200,10 +220,20 @@ function PaymentForm({ onCancel, onSuccess }: { onCancel: () => void; onSuccess:
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
           <Select
+            label="Settle Vendor Bill (Optional)"
+            value={form.vendorBillId}
+            onChange={e => handleBillSelect(e.target.value)}
+            options={[
+              { value: '', label: 'Standalone Payment' },
+              ...pendingBills.map((b: any) => ({ value: b.id, label: `${b.billNumber} (${formatINR(b.totalAmount)}) - ${b.vendor?.name}` }))
+            ]}
+          />
+          <Select
             label="Vendor" required
             value={form.clientId}
             onChange={e => setForm({ ...form, clientId: e.target.value })}
             options={[{ value: '', label: 'Select Vendor' }, ...vendors.map((v: any) => ({ value: v.id, label: v.name }))]}
+            disabled={!!form.vendorBillId}
           />
           <Select
             label="Bank Account (Paying From)" required

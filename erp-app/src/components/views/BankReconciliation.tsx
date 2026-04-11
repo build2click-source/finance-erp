@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Upload, Check, AlertCircle, ArrowRightLeft } from 'lucide-react';
 import { PageHeader, Button, Card, Badge } from '@/components/ui';
 import { useApi } from '@/lib/hooks/useApi';
 import { useToast } from '@/lib/hooks/useToast';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 
 interface BankReconciliationProps {
   bankId: string;

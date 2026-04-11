@@ -1,14 +1,23 @@
-/**
- * GET  /api/settings — Get the company profile + document preferences
- * PUT  /api/settings — Update profile and/or document preferences
- *
- * Document preferences (invoicePrefix, invoiceStartNo, footerNote, bankDetails)
- * are stored as a JSON blob in the `notes` field of CompanyProfile since the 
- * current schema doesn't have dedicated columns for them.
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
+import { z } from 'zod';
+
+const SettingsSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  gstin: z.string().length(15).optional().or(z.literal('')),
+  state: z.string().max(100).optional(),
+  city: z.string().max(100).optional(),
+  address: z.string().max(500).optional(),
+  pincode: z.string().max(10).optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().max(20).optional(),
+  invoicePrefix: z.string().max(20).optional(),
+  invoiceStartNo: z.string().max(10).optional(),
+  footerNote: z.string().max(500).optional(),
+  bankDetails: z.string().max(1000).optional(),
+});
+
 
 function parsePrefs(notes: string | null) {
   if (!notes) return { invoicePrefix: 'INV', invoiceStartNo: '001', footerNote: '', bankDetails: '' };
@@ -64,20 +73,14 @@ export async function PUT(request: NextRequest) {
     if (authResult instanceof NextResponse) return authResult;
 
     const body = await request.json();
+    const parseResult = SettingsSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json({ success: false, error: 'Validation failed', issues: parseResult.error.issues }, { status: 400 });
+    }
     const {
-      name,
-      gstin,
-      state,
-      city,
-      address,
-      pincode,
-      email,
-      phone,
-      invoicePrefix,
-      invoiceStartNo,
-      footerNote,
-      bankDetails,
-    } = body;
+      name, gstin, state, city, address, pincode, email, phone,
+      invoicePrefix, invoiceStartNo, footerNote, bankDetails,
+    } = parseResult.data;
 
     let profile = await prisma.companyProfile.findFirst({
       orderBy: { createdAt: 'asc' },

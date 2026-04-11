@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PageHeader, Card, Input } from '@/components/ui';
-import { formatINR } from '@/lib/mock-data';
+import { PageHeader, Card, Input, Button } from '@/components/ui';
+import { Download } from 'lucide-react';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 
@@ -37,6 +38,35 @@ export function GstReportsView({ onNavigate }: GstReportsViewProps) {
     return () => { active = false; };
   }, [selectedMonth]);
 
+  const exportCSV = () => {
+    if (!reportData?.gstr1) return;
+    
+    const d = reportData;
+    const rows = [
+      ['GST Filing Summary (GSTR-1 & GSTR-3B)'],
+      [`Month: ${selectedMonth}`],
+      [],
+      ['GSTR-1: OUTWARD SUPPLIES'],
+      ['Type', 'Invoice Count', 'Taxable Value', 'IGST', 'CGST', 'SGST'],
+      ['B2B (Registered)', d.gstr1.b2b.count, d.gstr1.b2b.taxableValue, d.gstr1.b2b.igst, d.gstr1.b2b.cgst, d.gstr1.b2b.sgst],
+      ['B2C (Unregistered)', d.gstr1.b2c.count, d.gstr1.b2c.taxableValue, d.gstr1.b2c.igst, d.gstr1.b2c.cgst, d.gstr1.b2c.sgst],
+      [],
+      ['GSTR-3B: SUMMARY & TAX LIABILITY'],
+      ['Section', 'Taxable Value', 'IGST', 'CGST', 'SGST'],
+      ['3.1 Outward Taxable', d.gstr3b.outward.taxableValue, d.gstr3b.outward.igst, d.gstr3b.outward.cgst, d.gstr3b.outward.sgst],
+      ['4. Eligible ITC', '-', d.gstr3b.itc.igst, d.gstr3b.itc.cgst, d.gstr3b.itc.sgst],
+      ['6.1 Net Tax Payable', '-', d.gstr3b.payable.igst, d.gstr3b.payable.cgst, d.gstr3b.payable.sgst]
+    ];
+    
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gst_report_${selectedMonth}.csv`;
+    a.click();
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: 'var(--space-10)' }}>
       <PageHeader
@@ -51,6 +81,9 @@ export function GstReportsView({ onNavigate }: GstReportsViewProps) {
                onChange={e => setSelectedMonth(e.target.value)} 
                style={{ width: '180px' }}
              />
+             <Button variant="secondary" onClick={exportCSV} disabled={!reportData?.gstr1}>
+               <Download size={16} /> Export CSV
+             </Button>
           </div>
         }
       />

@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useCallback } from 'react';
 import { Download, ChevronRight, ChevronDown, ArrowLeft } from 'lucide-react';
 import { PageHeader, Button, Card, Badge } from '@/components/ui';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 

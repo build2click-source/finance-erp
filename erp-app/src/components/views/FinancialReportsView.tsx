@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, BarChart3, Scale, FileSearch, RefreshCw,
-  ChevronDown, ChevronUp, CheckCircle, XCircle,
+  TrendingUp, TrendingDown, BarChart3, Scale, FileSearch, RefreshCw,
+  ChevronDown, ChevronUp, CheckCircle, XCircle, Download
 } from 'lucide-react';
 import { Card, PageHeader } from '@/components/ui';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 
 interface FinancialReportsViewProps {
@@ -69,12 +70,35 @@ function PLView() {
 
   const isProfitable = data.netProfit >= 0;
 
+  const exportCSV = () => {
+    if (!data) return;
+    const rows = [
+      ['Profit & Loss Statement'],
+      [`Period: ${from} to ${to}`],
+      [],
+      ['Account', 'Amount (INR)'],
+      ['REVENUE', ''],
+      ...data.revenue.map((r: any) => [`"${r.name}"`, r.balance]),
+      ['Total Revenue', data.totalRevenue],
+      [],
+      ['EXPENSES', ''],
+      ...data.expenses.map((r: any) => [`"${r.name}"`, r.balance]),
+      ['Total Expenses', data.totalExpenses],
+      [],
+      [isProfitable ? 'Net Profit' : 'Net Loss', Math.abs(data.netProfit)]
+    ];
+    downloadCSV(rows, `pnl_${from}_to_${to}.csv`);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <div style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
         <DateRangeSelector from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
         <button onClick={fetchData} style={btnSecondaryStyle}>
           <RefreshCw size={14} /> Refresh
+        </button>
+        <button onClick={exportCSV} style={btnSecondaryStyle}>
+          <Download size={14} /> Export CSV
         </button>
       </div>
 
@@ -131,6 +155,32 @@ function BalanceSheetView() {
   if (loading) return <LoadingCard label="Compiling Balance Sheet..." />;
   if (!data) return <EmptyCard label="No balance sheet data." />;
 
+  const exportCSV = () => {
+    if (!data) return;
+    const rows = [
+      ['Balance Sheet'],
+      [`As of: ${asOf}`],
+      [],
+      ['ASSETS', ''],
+      ['Account', 'Amount (INR)'],
+      ...data.assets.map((r: any) => [`"${r.name}"`, r.balance]),
+      ['Total Assets', data.totalAssets],
+      [],
+      ['LIABILITIES', ''],
+      ['Account', 'Amount (INR)'],
+      ...data.liabilities.map((r: any) => [`"${r.name}"`, r.balance]),
+      ['Total Liabilities', data.totalLiabilities],
+      [],
+      ['EQUITY', ''],
+      ['Account', 'Amount (INR)'],
+      ...data.equity.map((r: any) => [`"${r.name}"`, r.balance]),
+      ['Total Equity', data.totalEquity],
+      [],
+      ['Total Liabilities + Equity', data.totalLiabilities + data.totalEquity]
+    ];
+    downloadCSV(rows, `balance_sheet_${asOf}.csv`);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -145,6 +195,9 @@ function BalanceSheetView() {
         />
         <button onClick={fetchData} style={btnSecondaryStyle}>
           <RefreshCw size={14} /> Refresh
+        </button>
+        <button onClick={exportCSV} style={btnSecondaryStyle}>
+          <Download size={14} /> Export CSV
         </button>
         <div style={{
           marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px',
@@ -205,6 +258,26 @@ function TrialBalanceView() {
 
   const accounts: any[] = data.accounts || [];
 
+  const exportCSV = () => {
+    if (!accounts.length) return;
+    const rows = [
+      ['Trial Balance'],
+      [`As of: ${asOf}`],
+      [],
+      ['Code', 'Account Name', 'Type', 'Debit (Dr)', 'Credit (Cr)'],
+      ...accounts.map(acc => [
+        `"${acc.code}"`, 
+        `"${acc.name}"`, 
+        acc.type, 
+        acc.debit, 
+        acc.credit
+      ]),
+      [],
+      ['', 'TOTALS', '', data.totalDebit, data.totalCredit]
+    ];
+    downloadCSV(rows, `trial_balance_${asOf}.csv`);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -219,6 +292,9 @@ function TrialBalanceView() {
         />
         <button onClick={fetchData} style={btnSecondaryStyle}>
           <RefreshCw size={14} /> Refresh
+        </button>
+        <button onClick={exportCSV} style={btnSecondaryStyle}>
+          <Download size={14} /> Export CSV
         </button>
         <div style={{
           marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px',

@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Shield, Receipt, RefreshCw, Building2, CheckCircle } from 'lucide-react';
 import { Card, PageHeader } from '@/components/ui';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 
 interface TaxReportsViewProps {

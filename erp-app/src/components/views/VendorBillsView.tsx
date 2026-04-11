@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
-import { PageHeader, Button, Card, Badge, Input, Select, Textarea } from '@/components/ui';
+import { Plus, Trash2, Edit2, RotateCcw } from 'lucide-react';
+import { PageHeader, Button, Card, Badge, Input, Select, Textarea, ConfirmModal } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
-import { formatINR } from '@/lib/mock-data';
+import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
 import { useRole } from '@/lib/hooks/useRole';
@@ -17,10 +17,25 @@ interface VendorBillsViewProps {
 export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editBill, setEditBill] = useState<any | null>(null);
+  const [confirmPostId, setConfirmPostId] = useState<string | null>(null);
   const { data: billsResp, loading, revalidate } = useApi<any>('/api/vendor-bills');
   const bills = billsResp?.data || [];
   const { canFinalizeInvoices } = useRole();
   const { success, error } = useToast();
+
+  const handlePostConfirm = async () => {
+    if (!confirmPostId) return;
+    try {
+      const res = await fetch(`/api/vendor-bills/${confirmPostId}/post`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to post');
+      success(`Bill posted successfully.`);
+      revalidate();
+    } catch (e: any) {
+      error(e.message || 'Failed to post bill');
+    } finally {
+      setConfirmPostId(null);
+    }
+  };
 
   if (isCreating || editBill) {
     return <VendorBillForm
@@ -105,18 +120,7 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
             )}
             {(b.status === 'draft' && canFinalizeInvoices) && (
               <button
-                onClick={async () => {
-                  if (confirm(`Post bill ${b.billNumber}? This will lock it and record AP & ITC.`)) {
-                    try {
-                      const res = await fetch(`/api/vendor-bills/${b.id}/post`, { method: 'POST' });
-                      if (!res.ok) throw new Error('Failed to post');
-                      success(`Bill ${b.billNumber} posted.`);
-                      revalidate();
-                    } catch (e: any) {
-                      error(e.message || 'Failed to post bill');
-                    }
-                  }
-                }}
+                onClick={() => setConfirmPostId(b.id)}
                 style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-command-green)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
               >
                 Post
@@ -124,6 +128,16 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
             )}
           </div>
         )}
+      />
+
+      <ConfirmModal
+        open={!!confirmPostId}
+        title="Post Vendor Bill"
+        message="Are you sure you want to post this bill? This action will permanently lock the bill and record Accounts Payable & Input Tax Credit (ITC) in the ledger."
+        confirmLabel="Yes, Post Bill"
+        variant="warning"
+        onConfirm={handlePostConfirm}
+        onCancel={() => setConfirmPostId(null)}
       />
     </div>
   );

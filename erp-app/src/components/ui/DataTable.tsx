@@ -61,14 +61,14 @@ export function DataTable<T>({
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
+    setInternalSearchQuery(val);
     if (!isServerSide) {
-      setInternalSearchQuery(val);
       setInternalCurrentPage(1);
     }
     onSearch?.(val);
   };
 
-  const searchQuery = isServerSide ? '' : internalSearchQuery;
+  const searchQuery = internalSearchQuery;
 
   // Client-side search filtering
   const filteredData = React.useMemo(() => {

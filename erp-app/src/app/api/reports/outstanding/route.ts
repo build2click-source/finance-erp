@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     // Get all payments (receipts) to calculate collected amounts
     const receipts = await prisma.receipt.findMany({
-      where: { status: { not: 'bounced' as any } },
+      where: { status: { not: 'cancelled' as any } },
       include: {
         client: { select: { id: true, name: true } },
       },
@@ -83,8 +83,8 @@ export async function GET(request: NextRequest) {
       }
 
       const amount = Number(inv.totalAmount || 0);
-      const dueDate = (inv as any).dueDate as Date | null;
-      const bucket = agingBucket(dueDate, today);
+      const effectiveDueDate = inv.dueDate || inv.date;
+      const bucket = agingBucket(effectiveDueDate, today);
       clientMap[clientId].totalInvoiced += amount;
       clientMap[clientId].outstanding += amount;
       clientMap[clientId].aging[bucket] += amount;
@@ -108,7 +108,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const summary = Object.values(clientMap);
+    const summary = Object.values(clientMap).map(client => {
+      // Net outstanding per client
+      client.outstanding = Math.max(0, client.totalInvoiced - client.totalCollected);
+      
+      // Basic aging adjustment: if fully paid, zero out buckets.
+      // If partially paid, we keep the buckets as is for now (representing historical invoiced aging),
+      // which is a common simplification unless doing true per-invoice matching.
+      if (client.outstanding < 0.01) {
+        client.aging = { current: 0, '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
+      }
+      return client;
+    });
 
     // Total aging across all clients
     const agingTotals = summary.reduce(

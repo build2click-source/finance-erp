@@ -32,9 +32,9 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         asOf: asOf.toISOString(),
-        assets: assets.map(a => ({ ...a, balance: Math.abs(a.balance) })),
-        liabilities: liabilities.map(a => ({ ...a, balance: Math.abs(a.balance) })),
-        equity: equity.map(a => ({ ...a, balance: Math.abs(a.balance) })),
+        assets: assets.map(a => ({ ...a, amount: Math.abs(a.balance) })),
+        liabilities: liabilities.map(a => ({ ...a, amount: Math.abs(a.balance) })),
+        equity: equity.map(a => ({ ...a, amount: Math.abs(a.balance) })),
         totalAssets,
         totalLiabilities,
         totalEquity,

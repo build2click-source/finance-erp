@@ -28,6 +28,10 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   loading?: boolean;
   pageSize?: number;
+  totalCount?: number; // Total records in DB (if server-side)
+  currentPage?: number; // Current page (if server-side)
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
   filters?: React.ReactNode;
 }
 
@@ -40,22 +44,37 @@ export function DataTable<T>({
   emptyMessage = 'No results found.',
   loading = false,
   pageSize = 10,
+  totalCount,
+  currentPage: externalCurrentPage,
+  onPageChange,
+  onPageSizeChange,
   filters,
 }: DataTableProps<T>) {
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [currentPage, setCurrentPage] = React.useState(1);
+  const isServerSide = totalCount !== undefined;
+  const [internalSearchQuery, setInternalSearchQuery] = React.useState('');
+  const [internalCurrentPage, setInternalCurrentPage] = React.useState(1);
+
+  const currentPage = isServerSide ? (externalCurrentPage || 1) : internalCurrentPage;
+  const setCurrentPage = isServerSide ? onPageChange : setInternalCurrentPage;
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-    setCurrentPage(1); // reset to page 1 on search
-    onSearch?.(e.target.value);
+    const val = e.target.value;
+    if (!isServerSide) {
+      setInternalSearchQuery(val);
+      setInternalCurrentPage(1);
+    }
+    onSearch?.(val);
   };
+
+  const searchQuery = isServerSide ? '' : internalSearchQuery;
 
   // Client-side search filtering
   const filteredData = React.useMemo(() => {
+    if (isServerSide) return data;
     if (!searchQuery.trim()) return data;
     const query = searchQuery.toLowerCase();
     return data.filter((row: any) => {
+      if (!row) return false;
       // Search across all column keys + common fields
       return columns.some((col) => {
         try {
@@ -79,16 +98,20 @@ export function DataTable<T>({
       (row as any).sku?.toLowerCase?.()?.includes?.(query) ||
       (row as any).client?.name?.toLowerCase?.()?.includes?.(query);
     });
-  }, [data, searchQuery, columns]);
+  }, [isServerSide, data, searchQuery, columns]);
 
   // Pagination logic
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIdx = (safeCurrentPage - 1) * pageSize;
-  const paginatedData = filteredData.slice(startIdx, startIdx + pageSize);
+  const actualTotalCount = isServerSide ? (totalCount || 0) : filteredData.length;
+  const totalPages = Math.max(1, Math.ceil(actualTotalCount / pageSize));
+  
+  const paginatedData = React.useMemo(() => {
+    if (isServerSide) return data;
+    const startIdx = (currentPage - 1) * pageSize;
+    return filteredData.slice(startIdx, startIdx + pageSize);
+  }, [isServerSide, data, filteredData, currentPage, pageSize]);
 
-  const goToPrev = () => setCurrentPage((p) => Math.max(1, p - 1));
-  const goToNext = () => setCurrentPage((p) => Math.min(totalPages, p + 1));
+  const goToPrev = () => setCurrentPage?.(Math.max(1, currentPage - 1));
+  const goToNext = () => setCurrentPage?.(Math.min(totalPages, currentPage + 1));
 
   return (
     <Card padding={false}>
@@ -172,7 +195,9 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {paginatedData.length > 0 ? (
-              paginatedData.map((row, i) => (
+              paginatedData.map((row, i) => {
+                if (!row) return null;
+                return (
                 <tr key={i}>
                   {columns.map((col) => (
                     <td
@@ -186,11 +211,12 @@ export function DataTable<T>({
                     <td style={{ textAlign: 'right' }}>{renderRowActions(row)}</td>
                   )}
                 </tr>
-              ))
+                );
+              })
             ) : loading ? (
               <tr>
                 <td colSpan={columns.length + (renderRowActions ? 1 : 0)} style={{ padding: 'var(--space-6)' }}>
-                  <SkeletonTable cols={columns.length + (renderRowActions ? 1 : 0)} rows={5} />
+                  <SkeletonTable rows={5} />
                 </td>
               </tr>
             ) : (
@@ -215,7 +241,7 @@ export function DataTable<T>({
       {/* Footer / Pagination */}
       <div
         style={{
-          padding: 'var(--space-3) var(--space-4)',
+          padding: 'var(--space-2) var(--space-4)',
           borderTop: '1px solid var(--border-subtle)',
           display: 'flex',
           justifyContent: 'space-between',
@@ -224,17 +250,38 @@ export function DataTable<T>({
           color: 'var(--text-tertiary)',
         }}
       >
-        <span>
-          Showing <strong style={{ color: 'var(--text-primary)' }}>{startIdx + 1}–{Math.min(startIdx + pageSize, filteredData.length)}</strong> of {filteredData.length} results
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+          <span>
+            {isServerSide 
+              ? `Page ${currentPage} of ${totalPages}`
+              : `Showing ${Math.min((currentPage - 1) * pageSize + 1, actualTotalCount)}–${Math.min(currentPage * pageSize, actualTotalCount)} of ${actualTotalCount}`
+            }
+          </span>
+          {isServerSide && onPageSizeChange && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>Show:</span>
+              <select 
+                value={pageSize} 
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                style={{
+                  padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--surface-container)', color: 'var(--text-primary)',
+                  fontSize: '11px', outline: 'none'
+                }}
+              >
+                {[10, 25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToPrev} disabled={safeCurrentPage <= 1}>
+          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToPrev} disabled={currentPage <= 1 || loading}>
             <ChevronLeft size={14} /> Prev
           </Button>
           <span style={{ padding: '0 8px', fontWeight: 500, color: 'var(--text-primary)' }}>
-            {safeCurrentPage} / {totalPages}
+            {currentPage} / {totalPages}
           </span>
-          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToNext} disabled={safeCurrentPage >= totalPages}>
+          <Button variant="secondary" size="sm" style={{ padding: '4px 10px', height: '28px' }} onClick={goToNext} disabled={currentPage >= totalPages || loading}>
             Next <ChevronRight size={14} />
           </Button>
         </div>

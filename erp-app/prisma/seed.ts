@@ -1,6 +1,21 @@
 import 'dotenv/config';
-import { AccountType, PrismaClient } from '@prisma/client';
-import { prisma } from '../src/lib/db';
+import { AccountType, AppRole, PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
+import * as crypto from 'crypto';
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not defined');
+}
+
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
+// ============================================================
+// 1. DATA DEFINITIONS
+// ============================================================
 
 const accounts = [
   // ── ASSETS ──
@@ -46,8 +61,67 @@ const accounts = [
   { code: '5400', name: 'Bank Charges', type: 'Expense' as AccountType, isPandL: true, parentCode: '5000' },
 ];
 
+const POLICIES = [
+  {
+    role: 'admin' as AppRole,
+    permissions: {
+      canManageLedger: true,
+      canFinalizeInvoices: true,
+      canViewReports: true,
+      canManageUsers: true,
+      canManageProducts: true,
+      canPostVendorBills: true,
+      canManageClients: true,
+      canDoDataEntry: true,
+    },
+    allowedViews: ['dashboard', 'clients', 'data-entry', 'invoices', 'receipts', 'payments', 'vendor-bills', 'trade-summary', 'transactions', 'ledger', 'bank', 'accounts', 'financial-reports', 'outstanding', 'tax-reports', 'gst-reports', 'products', 'tenure', 'settings']
+  },
+  {
+    role: 'accountant' as AppRole,
+    permissions: {
+      canManageLedger: true,
+      canFinalizeInvoices: true,
+      canViewReports: true,
+      canManageUsers: false,
+      canManageProducts: false,
+      canPostVendorBills: true,
+      canManageClients: false,
+      canDoDataEntry: false,
+    },
+    allowedViews: ['dashboard', 'clients', 'data-entry', 'invoices', 'receipts', 'payments', 'vendor-bills', 'trade-summary', 'transactions', 'ledger', 'bank', 'accounts', 'financial-reports', 'outstanding', 'tax-reports', 'gst-reports', 'settings']
+  },
+  {
+    role: 'data_entry' as AppRole,
+    permissions: {
+      canManageLedger: false,
+      canFinalizeInvoices: false,
+      canViewReports: false,
+      canManageUsers: false,
+      canManageProducts: false,
+      canPostVendorBills: false,
+      canManageClients: true,
+      canDoDataEntry: true,
+    },
+    allowedViews: ['dashboard', 'clients', 'data-entry', 'invoices', 'receipts', 'payments', 'vendor-bills', 'trade-summary', 'settings']
+  }
+];
+
+// ============================================================
+// 2. HELPERS
+// ============================================================
+
 function randomDate(start: Date, end: Date) {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+}
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.randomBytes(16);
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, 100_000, 32, 'sha256', (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(`${salt.toString('hex')}:${derivedKey.toString('hex')}`);
+    });
+  });
 }
 
 async function cleanDatabase() {
@@ -72,23 +146,71 @@ async function cleanDatabase() {
       '"ERP"."products"',
       '"ERP"."clients"',
       '"ERP"."accounts"',
-      '"ERP"."company_profile"'
+      '"ERP"."company_profile"',
+      '"ERP"."users"',
+      '"ERP"."system_policies"'
     ];
     
     for (const table of tables) {
       await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${table} CASCADE`);
     }
   } catch (e) {
-    console.error('TRUNCATE error:', e);
+    console.error('TRUNCATE error (some tables might not exist yet):', e);
   }
 }
+
+// ============================================================
+// 3. MAIN SEED
+// ============================================================
 
 async function main() {
   await cleanDatabase();
 
-  console.log('🌱 Seeding Chart of Accounts...\n');
+  // ── SEED SYSTEM POLICIES ──
+  console.log('🛡️ Seeding System Policies...');
+  for (const policy of POLICIES) {
+    await prisma.systemPolicy.create({
+      data: {
+        role: policy.role,
+        permissions: policy.permissions,
+        allowedViews: policy.allowedViews
+      }
+    });
+  }
+  console.log(`✅ Seeded ${POLICIES.length} system policies.`);
 
-  // First pass: create all accounts without parent links
+  // ── SEED COMPANY PROFILE ──
+  console.log('\n🏢 Seeding Company Profile...');
+  await prisma.companyProfile.create({
+    data: {
+      name: 'ARM Enterprises',
+      state: 'West Bengal',
+      city: 'Kolkata',
+      gstin: '19AAACA1234A1Z5',
+      pincode: '700001',
+      email: 'billing@armenterprises.com',
+      phone: '+919999999999',
+    }
+  });
+  console.log('✅ Company Profile created.');
+
+  // ── SEED ADMIN USER ──
+  console.log('\n👤 Seeding Administrative User...');
+  const adminHash = await hashPassword('Admin@123');
+  await prisma.user.create({
+    data: {
+      username: 'admin',
+      displayName: 'Administrator',
+      email: 'admin@company.com',
+      passwordHash: adminHash,
+      role: 'admin',
+      isActive: true
+    }
+  });
+  console.log('✅ Default admin user created: admin / Admin@123');
+
+  // ── SEED CHART OF ACCOUNTS ──
+  console.log('\n🌱 Seeding Chart of Accounts...');
   const createdAccounts: Record<string, string> = {};
 
   for (const acct of accounts) {
@@ -103,7 +225,6 @@ async function main() {
     createdAccounts[acct.code] = created.id;
   }
 
-  // Second pass: set parent relationships
   for (const acct of accounts) {
     if (acct.parentCode && createdAccounts[acct.parentCode]) {
       await prisma.account.update({
@@ -114,8 +235,8 @@ async function main() {
   }
   console.log(`✅ Seeded ${accounts.length} accounts successfully.`);
 
-  // Create 3 Bank Accounts
-  console.log('\n🏦 Seeding 3 Banks...');
+  // ── SEED BANK ACCOUNTS ──
+  console.log('\n🏦 Seeding Banks...');
   const banks = [
     { accId: createdAccounts['1120'], name: 'HDFC Bank', no: 'HDFC0001234' },
     { accId: createdAccounts['1130'], name: 'ICICI Bank', no: 'ICIC0005678' },
@@ -135,7 +256,7 @@ async function main() {
     bankRecords.push(createdBank);
   }
 
-  // Create 10 Clients (mixed Customers, Vendors, Both)
+  // ── SEED CLIENTS ──
   console.log('\n👥 Seeding 10 Clients...');
   const clientData = [
     { name: 'Reliance Industries', code: 'RELIANCE', type: 'Customer', gstin: '27AAACR5055B1Z5' },
@@ -178,7 +299,7 @@ async function main() {
     clientRecords.push(createdClient);
   }
 
-  // Create Products
+  // ── SEED PRODUCTS ──
   console.log('\n📦 Seeding Products...');
   const prod1 = await prisma.product.create({
     data: {
@@ -204,17 +325,15 @@ async function main() {
     }
   });
 
-  // Six months ago
+  // ── SEED MOCK TRANSACTIONS ──
+  console.log('\n📝 Seeding 6 months of historical data...');
   const now = new Date();
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(now.getMonth() - 6);
 
-  console.log('\n📝 Seeding Data Entries (Invoices, Bills, Receipts, Payments) dispersed over 6 months...');
-
   const customers = clientRecords.filter(c => c.type === 'Customer' || c.type === 'Both');
   const vendors = clientRecords.filter(c => c.type === 'Vendor' || c.type === 'Both');
 
-  // Generate 20 Invoices + Receipts
   for (let i = 1; i <= 20; i++) {
     const cust = customers[Math.floor(Math.random() * customers.length)];
     const bank = bankRecords[Math.floor(Math.random() * bankRecords.length)];
@@ -263,8 +382,7 @@ async function main() {
       }
     });
 
-    // Maybe add a receipt later
-    const receiptDate = new Date(date.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 days later
+    const receiptDate = new Date(date.getTime() + 5 * 24 * 60 * 60 * 1000);
     if (receiptDate < now && Math.random() > 0.3) {
       await prisma.receipt.create({
         data: {
@@ -295,7 +413,6 @@ async function main() {
     }
   }
 
-  // Generate 15 Vendor Bills + Payments
   for (let i = 1; i <= 15; i++) {
     const ven = vendors[Math.floor(Math.random() * vendors.length)];
     const bank = bankRecords[Math.floor(Math.random() * bankRecords.length)];
@@ -318,25 +435,23 @@ async function main() {
       }
     });
 
-    // Explicit AP Journal
-    const billTx = await prisma.transaction.create({
+    await prisma.transaction.create({
       data: {
         description: `Vendor Bill Posting ${i}`,
         postedAt: date,
         createdAt: date,
         journalEntries: {
           create: [
-            { accountId: createdAccounts['5300'], amount: amount, entryType: 'Dr' as any, createdAt: date }, // General Expense
-            { accountId: createdAccounts['1410'], amount: tax / 2, entryType: 'Dr' as any, createdAt: date }, // CGST Input
-            { accountId: createdAccounts['1420'], amount: tax / 2, entryType: 'Dr' as any, createdAt: date }, // SGST Input
-            { accountId: ven.vendorAccountId!, amount: -total, entryType: 'Cr' as any, createdAt: date }, // AP
+            { accountId: createdAccounts['5300'], amount: amount, entryType: 'Dr' as any, createdAt: date },
+            { accountId: createdAccounts['1410'], amount: tax / 2, entryType: 'Dr' as any, createdAt: date },
+            { accountId: createdAccounts['1420'], amount: tax / 2, entryType: 'Dr' as any, createdAt: date },
+            { accountId: ven.vendorAccountId!, amount: -total, entryType: 'Cr' as any, createdAt: date },
           ]
         }
       }
     });
 
-    // Maybe add a payment
-    const paymentDate = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days later
+    const paymentDate = new Date(date.getTime() + 7 * 24 * 60 * 60 * 1000);
     if (paymentDate < now && Math.random() > 0.2) {
       await prisma.payment.create({
         data: {
@@ -366,33 +481,7 @@ async function main() {
     }
   }
 
-  // Create 5 Trades (Brokerage Setup)
-  for (let i = 1; i <= 5; i++) {
-    const buyer = customers[Math.floor(Math.random() * customers.length)];
-    const seller = vendors[Math.floor(Math.random() * vendors.length)];
-    if (buyer.id === seller.id) continue;
-    const date = randomDate(sixMonthsAgo, now);
-
-    const price = 1500;
-    const quantity = 100;
-    
-    await prisma.trade.create({
-      data: {
-        date: date,
-        buyerId: buyer.id,
-        sellerId: seller.id,
-        productId: prod2.id,
-        quantity: quantity,
-        price: price,
-        tradeType: 'sell',
-        commissionRate: 5,
-        commissionAmt: 500,
-        createdAt: date
-      }
-    });
-  }
-
-  console.log('\n✅ 6 Months of Dispersed Mock Data Seeded Successfully.');
+  console.log('\n✅ Master Seed Complete: A fully functional environment has been initialized.');
 }
 
 main()

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { PageHeader, Button, Card, Badge, Input, Select, Textarea } from '@/components/ui';
+import { PageHeader, Button, Card, Badge, Input, Select, Textarea, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -22,19 +22,27 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
 
-  const { data: invoicesResp, loading, error, revalidate } = useApi<any>('/api/invoices');
+  const queryParams = new URLSearchParams();
+  if (fromDate) queryParams.set('from', fromDate);
+  if (toDate) queryParams.set('to', toDate);
+  if (statusFilter !== 'all') queryParams.set('status', statusFilter);
+  queryParams.set('page', page.toString());
+  queryParams.set('limit', limit.toString());
+
+  const { data: invoicesResp, loading, error, revalidate } = useApi<any>(`/api/invoices?${queryParams.toString()}`);
   const invoices = invoicesResp?.data || [];
-  const { canFinalizeInvoices } = useRole();
+  const pagination = invoicesResp?.pagination || { total: 0 };
 
-  const filteredInvoices = React.useMemo(() => {
-    return invoices.filter((inv: any) => {
-      const date = new Date(inv.date).toISOString().split('T')[0];
-      const matchesDate = (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
-      const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
-      return matchesDate && matchesStatus;
-    });
-  }, [invoices, fromDate, toDate, statusFilter]);
+  const { canFinalizeInvoices } = useRole();
+  if (loading && !invoices.length) return <ViewSkeleton />;
+
+  const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    setter(val);
+    setPage(1);
+  };
 
   if (previewId) {
     return <InvoicePreview id={previewId} onBack={() => setPreviewId(null)} />;
@@ -121,26 +129,31 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
           <DataTable 
             loading={loading}
             columns={columns} 
-            data={filteredInvoices} 
+            data={invoices} 
+            totalCount={pagination.total}
+            currentPage={page}
+            pageSize={limit}
+            onPageChange={setPage}
+            onPageSizeChange={setLimit}
             filters={
               <>
                 <Input 
                   type="date" 
                   value={fromDate} 
-                  onChange={(e) => setFromDate(e.target.value)} 
+                  onChange={(e) => handleFilterChange(setFromDate, e.target.value)} 
                   placeholder="From Date"
                   style={{ width: '150px' }}
                 />
                 <Input 
                   type="date" 
                   value={toDate} 
-                  onChange={(e) => setToDate(e.target.value)} 
+                  onChange={(e) => handleFilterChange(setToDate, e.target.value)} 
                   placeholder="To Date"
                   style={{ width: '150px' }}
                 />
                 <Select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)}
                   options={[
                     { value: 'all', label: 'All Status' },
                     { value: 'draft', label: 'Draft' },

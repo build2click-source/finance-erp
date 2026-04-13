@@ -8,7 +8,7 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { createTransaction, type JournalLine } from '@/lib/ledger';
+import { createTransaction, reverseTransaction, type JournalLine } from '@/lib/ledger';
 
 // ============================================================
 // TYPES
@@ -263,4 +263,34 @@ export async function postPayment(input: CreatePaymentInput): Promise<PostedSett
     transactionId: txResult.transactionId,
     amount: input.amount,
   };
+}
+
+/**
+ * VOID RECEIPT
+ */
+export async function voidReceipt(id: string, reason: string) {
+  return await prisma.$transaction(async (tx) => {
+    const receipt = await tx.receipt.findUnique({ where: { id } });
+    if (!receipt) throw new Error('Receipt not found');
+    if (receipt.status !== 'posted') {
+      await tx.receipt.delete({ where: { id } });
+      return { success: true, deleted: true };
+    }
+
+    // Identify transaction
+    const transaction = await tx.transaction.findFirst({
+      where: { metadata: { path: ['receiptId'], equals: id } }
+    });
+
+    if (transaction) {
+      await reverseTransaction(transaction.id, reason);
+    }
+
+    await tx.receipt.update({
+      where: { id },
+      data: { status: 'cancelled' }
+    });
+
+    return { success: true, voided: true };
+  });
 }

@@ -36,11 +36,11 @@ export const navSections: NavSection[] = [
     title: 'Operations',
     items: [
       { id: 'data-entry', label: 'Data Entry', icon: ArrowRightLeft },
+      { id: 'trade-summary', label: 'Trade Summary', icon: ArrowRightLeft },
       { id: 'transactions', label: 'Manual Journals', icon: BookOpen },
       { id: 'receipts', label: 'Receipts Entry', icon: Receipt },
       { id: 'payments', label: 'Vendor Payments', icon: ArrowRightLeft },
       { id: 'invoices', label: 'Sales Invoices', icon: FileText },
-      { id: 'trade-summary', label: 'Trade Summary', icon: ArrowRightLeft },
       { id: 'vendor-bills', label: 'Vendor Bills', icon: Receipt },
     ],
   },

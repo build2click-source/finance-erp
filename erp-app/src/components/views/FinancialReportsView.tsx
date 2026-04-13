@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp, TrendingDown, BarChart3, Scale, FileSearch, RefreshCw,
-  TrendingUp, TrendingDown, BarChart3, Scale, FileSearch, RefreshCw,
   ChevronDown, ChevronUp, CheckCircle, XCircle, Download
 } from 'lucide-react';
 import { Card, PageHeader } from '@/components/ui';
@@ -87,7 +86,7 @@ function PLView() {
       [],
       [isProfitable ? 'Net Profit' : 'Net Loss', Math.abs(data.netProfit)]
     ];
-    downloadCSV(rows, `pnl_${from}_to_${to}.csv`);
+    // downloadCSV(rows, `pnl_${from}_to_${to}.csv`);
   };
 
   return (
@@ -178,7 +177,7 @@ function BalanceSheetView() {
       [],
       ['Total Liabilities + Equity', data.totalLiabilities + data.totalEquity]
     ];
-    downloadCSV(rows, `balance_sheet_${asOf}.csv`);
+    // downloadCSV(rows, `balance_sheet_${asOf}.csv`);
   };
 
   return (
@@ -275,7 +274,7 @@ function TrialBalanceView() {
       [],
       ['', 'TOTALS', '', data.totalDebit, data.totalCredit]
     ];
-    downloadCSV(rows, `trial_balance_${asOf}.csv`);
+    // downloadCSV(rows, `trial_balance_${asOf}.csv`);
   };
 
   return (

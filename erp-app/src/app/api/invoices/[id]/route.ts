@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { voidInvoice } from '@/lib/invoicing/invoice-engine';
+import { requireAuth } from '@/lib/auth';
 
 // Schema for updating a draft invoice
 const UpdateInvoiceSchema = z.object({
@@ -191,5 +193,22 @@ export async function PATCH(
     }
     console.error('PATCH /api/invoices/[id] error:', error);
     return NextResponse.json({ success: false, error: 'Failed to update invoice' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const authResult = await requireAuth(request, ['admin', 'accountant']);
+    if (authResult instanceof NextResponse) return authResult;
+
+    const { id } = await params;
+    const result = await voidInvoice(id, 'Voided by user request');
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('DELETE /api/invoices/[id] error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to void invoice' }, { status: 500 });
   }
 }

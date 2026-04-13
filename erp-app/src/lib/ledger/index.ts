@@ -5,6 +5,7 @@ export {
   createTransaction,
   postTransaction,
   createContraEntry,
+  reverseTransaction,
   PostingError,
   type JournalLine,
   type CreateTransactionInput,

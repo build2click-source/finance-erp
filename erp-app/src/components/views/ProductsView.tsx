@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { Plus, Package, Box, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
-import { PageHeader, Button, Card, Badge, Input, Select, StatCard } from '@/components/ui';
+import { PageHeader, Button, Card, Badge, Input, Select, StatCard, ConfirmModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -38,6 +38,8 @@ interface ProductsViewProps {
 
 export function ProductsView({ onNavigate }: ProductsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [deletingProduct, setDeletingProduct] = useState<any>(null);
   const [isMovement, setIsMovement] = useState<'receive' | 'issue' | null>(null);
   const [typeFilter, setTypeFilter] = useState('all');
 
@@ -73,13 +75,33 @@ export function ProductsView({ onNavigate }: ProductsViewProps) {
     });
   }, [combinedData, typeFilter]);
 
+  if ((prodLoad || invLoad) && !products.length) return <ViewSkeleton />;
+
   if (isCreating) {
     return <ProductForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidateAll(); }} />;
+  }
+
+  if (editingProduct) {
+    return <ProductForm /* initialData={editingProduct} */ onCancel={() => setEditingProduct(null)} onSuccess={() => { setEditingProduct(null); revalidateAll(); }} />;
   }
 
   if (isMovement) {
     return <InventoryMovementForm type={isMovement} products={products} onCancel={() => setIsMovement(null)} onSuccess={() => { setIsMovement(null); revalidateAll(); }} />;
   }
+
+  const handleDeleteProduct = async () => {
+    if (!deletingProduct) return;
+    try {
+      const res = await fetch(`/api/products/${deletingProduct.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      revalidateAll();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete product');
+    } finally {
+      setDeletingProduct(null);
+    }
+  };
 
   const totalValue = combinedData.reduce((s, p) => s + p.stockValue, 0);
   const totalSKUs = combinedData.length;
@@ -210,13 +232,37 @@ export function ProductsView({ onNavigate }: ProductsViewProps) {
         }
         searchPlaceholder="Search by SKU, name, or HSN..."
         renderRowActions={(p: ProductRow) => (
-          <button
-            onClick={() => setIsMovement('receive')}
-            style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
-          >
-            Stock In
-          </button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <button
+              onClick={() => setIsMovement('receive')}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Stock In
+            </button>
+            <button
+              onClick={() => setEditingProduct(p)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => setDeletingProduct(p)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Delete
+            </button>
+          </div>
         )}
+      />
+
+      <ConfirmModal
+        open={!!deletingProduct}
+        title="Delete Product?"
+        message={`Are you sure you want to delete "${deletingProduct?.name}"? If it has been used in invoices or has stock, it will be deactivated instead of deleted.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteProduct}
+        onCancel={() => setDeletingProduct(null)}
       />
     </div>
   );

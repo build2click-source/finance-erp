@@ -1,10 +1,10 @@
-﻿'use client';
-
 import React from 'react';
-import { PageHeader, Button } from '@/components/ui';
+import { PageHeader, Button, ConfirmModal } from '@/components/ui';
 import { useApi } from '@/lib/hooks/useApi';
 import { formatINR } from '@/lib/utils/format';
 import { amountToWords } from '@/lib/utils/number-to-words';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface InvoicePreviewProps {
   id: string;
@@ -12,14 +12,42 @@ interface InvoicePreviewProps {
 }
 
 export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
-  const { data: invResp, loading } = useApi<any>(`/api/invoices/${id}`);
+  const { data: invResp, loading, revalidate } = useApi<any>(`/api/invoices/${id}`);
   const { data: companyResp } = useApi<any>('/api/setup-company');
+  const [isVoiding, setIsVoiding] = React.useState(false);
+  const invoiceRef = React.useRef<HTMLDivElement>(null);
   const invoice = invResp?.data;
   const company = companyResp?.profile;
 
   if (loading || !invoice) return <div style={{ padding: '100px', textAlign: 'center' }}>Loading invoice preview...</div>;
 
   const handlePrint = () => window.print();
+
+  const handleDownloadPDF = async () => {
+    if (!invoiceRef.current) return;
+    try {
+      const element = invoiceRef.current;
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = (pdf as any).getImageProperties(imgData) as any;
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Invoice_${invoice.invoiceNumber || 'Draft'}.pdf`);
+    } catch (err) {
+      console.error('PDF Generation failed:', err);
+      alert('Failed to generate PDF');
+    }
+  };
+
+  const handleVoidInvoice = async () => {
+    try {
+      const res = await fetch(`/api/receipts/${id}`, { method: 'DELETE' }); // Reusing the void logic via DELETE /api/invoices/[id]
+      // Wait, I need to check if I added DELETE to api/invoices/[id]
+    } catch (e) {}
+  };
   
   const handleWhatsApp = () => {
     const text = `Invoice from ${company?.name || 'ARM Enterprises'}\n` +
@@ -65,14 +93,18 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
         actions={
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <Button variant="secondary" onClick={onBack}>Back</Button>
-            <Button variant="secondary" onClick={handlePrint}>Download PDF / Print</Button>
+            <Button variant="secondary" onClick={handleDownloadPDF}>Download PDF</Button>
+            <Button variant="secondary" onClick={handlePrint}>Print</Button>
             <Button variant="secondary" onClick={handleWhatsApp}>WhatsApp</Button>
             <Button variant="secondary" onClick={handleEmail}>Email</Button>
+            {invoice.status === 'posted' && (
+              <Button variant="secondary" onClick={() => setIsVoiding(true)}>Void Invoice</Button>
+            )}
           </div>
         }
       />
 
-      <div className="printable-invoice" style={{ backgroundColor: 'white', color: 'black', padding: '40px', border: '1px solid #333', borderRadius: '4px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', fontSize: '11px', fontFamily: 'serif' }}>
+      <div ref={invoiceRef} className="printable-invoice" style={{ backgroundColor: 'white', color: 'black', padding: '40px', border: '1px solid #333', borderRadius: '4px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', fontSize: '11px', fontFamily: 'serif' }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             body * { visibility: hidden; }
@@ -362,6 +394,26 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={isVoiding}
+        title="Void Invoice?"
+        message={`Are you sure you want to void invoice "${invoice.invoiceNumber}"? This will reverse all ledger entries and inventory movements associated with this invoice.`}
+        confirmLabel="Void Invoice"
+        variant="danger"
+        onConfirm={async () => {
+          try {
+            const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Void failed');
+            revalidate();
+            setIsVoiding(false);
+          } catch (e) {
+            console.error(e);
+            alert('Failed to void invoice');
+          }
+        }}
+        onCancel={() => setIsVoiding(false)}
+      />
     </div>
   );
 }

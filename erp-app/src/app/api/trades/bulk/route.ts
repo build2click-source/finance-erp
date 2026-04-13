@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, count: result.length }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'Validation failed', details: error.issues }, { status: 400 });
     }

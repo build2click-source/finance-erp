@@ -7,7 +7,6 @@ import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
 import { useApi } from '@/lib/hooks/useApi';
 import { InvoicePreview } from './InvoicePreview';
-import { TradeBulkUploadModal } from './TradeBulkUploadModal';
 
 export function TradeSummaryView() {
   const { data: clientsData } = useApi<any>('/api/clients');
@@ -19,11 +18,16 @@ export function TradeSummaryView() {
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
   const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
   const [showDraftBill, setShowDraftBill] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   
   const [period, setPeriod] = useState<'custom' | 'month' | 'quarter' | 'half' | 'year'>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+
+  const handleFilterChange = () => {
+    setPage(1);
+  };
 
   // Auto-set dates based on period
   useEffect(() => {
@@ -54,12 +58,14 @@ export function TradeSummaryView() {
   }, [period]);
 
   const fetchUrl = useMemo(() => {
-    if (!selectedClientId) return '/api/trades?limit=100'; // If no client, fetch latest
-    let url = `/api/trades?clientId=${selectedClientId}`;
-    if (fromDate) url += `&fromDate=${fromDate}`;
-    if (toDate) url += `&toDate=${toDate}`;
-    return url;
-  }, [selectedClientId, fromDate, toDate]);
+    const params = new URLSearchParams();
+    if (selectedClientId) params.set('clientId', selectedClientId);
+    if (fromDate) params.set('fromDate', fromDate);
+    if (toDate) params.set('toDate', toDate);
+    params.set('page', page.toString());
+    params.set('limit', limit.toString());
+    return `/api/trades?${params.toString()}`;
+  }, [selectedClientId, fromDate, toDate, page, limit]);
 
   const { data: tradesResp, loading, revalidate } = useApi<any>(fetchUrl || '');
   const trades = tradesResp?.data || [];
@@ -117,9 +123,6 @@ export function TradeSummaryView() {
         description="Comprehensive report of Buy & Sell trades for a specific client."
         actions={
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <Button variant="secondary" onClick={() => setShowUploadModal(true)}>
-              Upload CSV
-            </Button>
             {selectedTradeIds.size > 0 && (
               <Button onClick={() => setShowDraftBill(true)}>
                 Generate Draft Bill ({selectedTradeIds.size})
@@ -225,73 +228,80 @@ export function TradeSummaryView() {
             <p style={{ fontSize: 'var(--text-lg)', fontWeight: 500 }}>Search and select a client to generate the trade summary.</p>
         </div>
       ) : (
-        <Card padding={false} style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', whiteSpace: 'nowrap', borderCollapse: 'collapse' }}>
-                <thead>
-                    <tr style={{ backgroundColor: 'var(--surface-container-high)' }}>
-                        <th style={{ width: '40px', padding: '12px 16px' }}>
-                          <input 
-                            type="checkbox" 
-                            checked={trades.length > 0 && selectedTradeIds.size === trades.length}
-                            onChange={toggleAll}
-                          />
-                        </th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Date</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Type</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Partner</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Product</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>Qty/MT</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>Price</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>Comm.</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {loading ? (
-                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>Loading...</td></tr>
-                    ) : trades.length === 0 ? (
-                        <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>No matches found for the selected period.</td></tr>
-                    ) : (
-                        trades.map((t: any) => {
-                            const isBuy = t.buyerId === selectedClientId;
-                            const partner = isBuy ? t.seller?.name : t.buyer?.name;
-                            const isSelected = selectedTradeIds.has(t.id);
-                            return (
-                                <tr key={t.id} style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: isSelected ? 'var(--primary-container-low)' : 'transparent' }}>
-                                    <td style={{ padding: '12px 16px' }}>
-                                      <input 
-                                        type="checkbox" 
-                                        checked={isSelected}
-                                        onChange={() => toggleOne(t.id)}
-                                      />
-                                    </td>
-                                    <td style={{ padding: '12px 16px' }}>{new Date(t.date).toLocaleDateString()}</td>
-                                    <td style={{ padding: '12px 16px' }}>
-                                        <Badge variant={isBuy ? 'warning' : 'success'}>
-                                            {isBuy ? 'BUY' : 'SELL'}
-                                        </Badge>
-                                    </td>
-                                    <td style={{ padding: '12px 16px' }}>{partner}</td>
-                                    <td style={{ padding: '12px 16px' }}>{t.product?.name}</td>
-                                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>{t.quantity}</td>
-                                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>₹{Number(t.price).toLocaleString('en-IN')}</td>
-                                    <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>₹{Number(t.commissionAmt).toLocaleString('en-IN')}</td>
-                                </tr>
-                            );
-                        })
-                    )}
-                </tbody>
-            </table>
-        </Card>
+        <DataTable
+          loading={loading}
+          data={trades}
+          totalCount={tradesResp?.pagination?.total || 0}
+          currentPage={page}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={setLimit}
+          columns={[
+            {
+              key: 'selection',
+              header: '',
+              render: (row: any) => (
+                <input 
+                  type="checkbox" 
+                  checked={selectedTradeIds.has(row.id)}
+                  onChange={() => toggleOne(row.id)}
+                />
+              ),
+              width: '40px'
+            },
+            {
+              key: 'date',
+              header: 'Date',
+              render: (row: any) => new Date(row.date).toLocaleDateString('en-IN')
+            },
+            {
+              key: 'type',
+              header: 'Type',
+              render: (row: any) => {
+                const isBuy = row.buyerId === selectedClientId;
+                return <Badge variant={isBuy ? 'warning' : 'success'}>{isBuy ? 'BUY' : 'SELL'}</Badge>;
+              }
+            },
+            {
+              key: 'partner',
+              header: 'Partner',
+              render: (row: any) => (row.buyerId === selectedClientId ? row.seller?.name : row.buyer?.name)
+            },
+            {
+              key: 'product',
+              header: 'Product',
+              render: (row: any) => row.product?.name
+            },
+            {
+              key: 'quantity',
+              header: 'Qty/MT',
+              render: (row: any) => row.quantity,
+              align: 'right'
+            },
+            {
+              key: 'price',
+              header: 'Price',
+              render: (row: any) => `₹${Number(row.price).toLocaleString('en-IN')}`,
+              align: 'right'
+            },
+            {
+              key: 'commissionAmt',
+              header: 'Comm.',
+              render: (row: any) => (
+                <strong style={{ color: 'var(--primary)' }}>₹{Number(row.commissionAmt).toLocaleString('en-IN')}</strong>
+              ),
+              align: 'right'
+            }
+          ]}
+          filters={
+            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+              <Button size="sm" variant="secondary" onClick={toggleAll}>
+                {selectedTradeIds.size === trades.length && trades.length > 0 ? 'Deselect All' : 'Select All on Page'}
+              </Button>
+            </div>
+          }
+        />
       )}
-
-      <TradeBulkUploadModal 
-        open={showUploadModal} 
-        onClose={() => setShowUploadModal(false)}
-        onSuccess={() => {
-          setShowUploadModal(false);
-          revalidate();
-        }}
-      />
     </div>
   );
 }

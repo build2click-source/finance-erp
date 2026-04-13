@@ -71,12 +71,19 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const posted = searchParams.get('posted'); // 'true' | 'false'
+    const clientId = searchParams.get('clientId');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
     const where: any = {};
     if (posted === 'true') where.postedAt = { not: null };
     if (posted === 'false') where.postedAt = null;
+    if (clientId) {
+      where.OR = [
+        { invoice: { clientId } },
+        { receipt: { clientId } },
+      ];
+    }
     if (from || to) {
       where.createdAt = {};
       if (from) where.createdAt.gte = new Date(from);
@@ -90,6 +97,8 @@ export async function GET(request: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         include: {
+          invoice: { select: { clientId: true } },
+          receipt: { select: { clientId: true } },
           journalEntries: {
             include: {
               account: { select: { code: true, name: true, type: true } },

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Plus, FileUp } from 'lucide-react';
-import { PageHeader, Button, Card, Badge, Input, Select, Textarea } from '@/components/ui';
+import { PageHeader, Button, Card, Badge, Input, Select, Textarea, ConfirmModal, BulkUploadModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
@@ -15,8 +15,10 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   const [viewingClient, setViewingClient] = useState<any>(null);
-  const [importing, setImporting] = useState(false);
+  const [deletingClient, setDeletingClient] = useState<any>(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
+  const [importing, setImporting] = useState(false);
 
   const { data: clientsResp, loading, error, revalidate } = useApi<any>('/api/clients');
   const clients = clientsResp?.data || [];
@@ -28,6 +30,8 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
       return c.type === typeFilter;
     });
   }, [clients, typeFilter]);
+
+  if (loading && !clients.length) return <ViewSkeleton />;
 
   if (isCreating || editingClient) {
     return <ClientForm 
@@ -108,22 +112,34 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
     reader.readAsText(file);
   };
 
+  const handleDeleteClient = async () => {
+    if (!deletingClient) return;
+    try {
+      const res = await fetch(`/api/clients/${deletingClient.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      revalidate();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete client');
+    } finally {
+      setDeletingClient(null);
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <PageHeader
         title="Client Management"
         description="Manage all buyer and seller profiles."
         actions={
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <Button variant="secondary" onClick={() => onNavigate('dashboard')}>Dashboard</Button>
-            <input type="file" id="csv-upload" accept=".csv" style={{ display: 'none' }} disabled={importing} onChange={handleFileUpload} />
-            <Button variant="secondary" onClick={() => document.getElementById('csv-upload')?.click()}>
-              <FileUp size={16} /> {importing ? 'Importing...' : 'Import CSV'}
+          <>
+            <Button variant="secondary" onClick={() => setShowBulkModal(true)}>
+              <FileUp size={16} /> Batch Upload
             </Button>
             <Button onClick={() => setIsCreating(true)}>
               <Plus size={16} /> New Client
             </Button>
-          </div>
+          </>
         }
       />
 
@@ -182,8 +198,42 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
             >
               Invoices
             </button>
+            <button
+              onClick={() => setDeletingClient(c)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Archive
+            </button>
           </div>
         )}
+      />
+
+      <ConfirmModal
+        open={!!deletingClient}
+        title="Archive Client?"
+        message={`Are you sure you want to archive "${deletingClient?.name}"? If they have transactions, they will be deactivated instead of deleted.`}
+        confirmLabel="Archive"
+        variant="danger"
+        onConfirm={handleDeleteClient}
+        onCancel={() => setDeletingClient(null)}
+      />
+
+      <BulkUploadModal
+        open={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        title="Batch Import Clients"
+        entityName="Clients"
+        endpoint="/api/clients/bulk"
+        onSuccess={revalidate}
+        columns={[
+          { key: 'name', label: 'Name', required: true },
+          { key: 'code', label: 'Code', required: true },
+          { key: 'type', label: 'Type' },
+          { key: 'email', label: 'Email' },
+          { key: 'contact', label: 'Contact' },
+          { key: 'gstin', label: 'GSTIN' },
+          { key: 'address', label: 'Address' },
+        ]}
       />
     </div>
   );

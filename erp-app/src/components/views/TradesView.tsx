@@ -6,6 +6,7 @@ import { PageHeader, Button, Card, Input, Select } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { ViewId } from '@/components/layout/Sidebar';
 import { useApi } from '@/lib/hooks/useApi';
+import { TradeBulkUploadModal } from './TradeBulkUploadModal';
 
 interface TradesViewProps {
   onNavigate: (view: ViewId) => void;
@@ -13,6 +14,7 @@ interface TradesViewProps {
 
 export function TradesView({ onNavigate }: TradesViewProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const { data: tradesResp, loading, revalidate } = useApi<any>('/api/trades?limit=100');
   const trades = tradesResp?.data || [];
 
@@ -26,52 +28,88 @@ export function TradesView({ onNavigate }: TradesViewProps) {
         title="Data Entry (Trades)"
         description="Record commodity trades, quantities, and commission."
         actions={
-          <Button onClick={() => setIsCreating(true)}>
-            <Plus size={16} /> New Trade
-          </Button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <Button variant="secondary" onClick={() => setShowUploadModal(true)}>
+              Upload CSV
+            </Button>
+            <Button onClick={() => setIsCreating(true)}>
+              <Plus size={16} /> New Trade
+            </Button>
+          </div>
         }
       />
 
-      <Card padding={false} style={{ overflowX: 'auto' }}>
-        <table className="data-table" style={{ width: '100%', whiteSpace: 'nowrap', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>From Client(seller)</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>DATE</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>QUANTITY/MT</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>PRICE</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>BUY/SELL</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>To Client(buyer)</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>PRODUCT</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>REMARK</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>@</th>
-              <th style={{ backgroundColor: '#aaa', color: '#fff', border: '1px solid #ccc', padding: '8px' }}>AMOUNT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 'var(--space-8)' }}>Loading trades...</td></tr>
-            ) : trades.length === 0 ? (
-              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 'var(--space-8)' }}>No trades recorded.</td></tr>
-            ) : (
-              trades.map((t: any) => (
-                <tr key={t.id}>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.seller?.name}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.date.split('T')[0]}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{Number(t.quantity).toString()}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{Number(t.price).toString()}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.tradeType}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.buyer?.name}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.product?.name}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{t.remarks || ''}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{Number(t.commissionRate).toString()}</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'center' }}>{Number(t.commissionAmt).toString()}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </Card>
+      <DataTable<any>
+        columns={[
+          {
+            key: 'seller',
+            header: 'From Client(seller)',
+            render: (t) => t.seller?.name,
+          },
+          {
+            key: 'date',
+            header: 'DATE',
+            render: (t) => t.date.split('T')[0],
+          },
+          {
+            key: 'quantity',
+            header: 'QUANTITY/MT',
+            render: (t) => Number(t.quantity).toString(),
+            align: 'right',
+          },
+          {
+            key: 'price',
+            header: 'PRICE',
+            render: (t) => Number(t.price).toString(),
+            align: 'right',
+          },
+          {
+            key: 'tradeType',
+            header: 'BUY/SELL',
+            render: (t) => t.tradeType.toUpperCase(),
+          },
+          {
+            key: 'buyer',
+            header: 'To Client(buyer)',
+            render: (t) => t.buyer?.name,
+          },
+          {
+            key: 'product',
+            header: 'PRODUCT',
+            render: (t) => t.product?.name,
+          },
+          {
+            key: 'remarks',
+            header: 'REMARK',
+            render: (t) => t.remarks || '',
+          },
+          {
+            key: 'commissionRate',
+            header: '@',
+            render: (t) => Number(t.commissionRate).toString(),
+            align: 'right',
+          },
+          {
+            key: 'commissionAmt',
+            header: 'AMOUNT',
+            render: (t) => Number(t.commissionAmt).toString(),
+            align: 'right',
+          },
+        ]}
+        data={trades}
+        loading={loading}
+        totalCount={tradesResp?.pagination?.total || 0}
+        searchPlaceholder="Search trades..."
+      />
+
+      <TradeBulkUploadModal 
+        open={showUploadModal} 
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={() => {
+          setShowUploadModal(false);
+          revalidate();
+        }}
+      />
     </div>
   );
 }

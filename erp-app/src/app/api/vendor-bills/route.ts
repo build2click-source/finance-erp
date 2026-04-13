@@ -19,16 +19,36 @@ export async function GET(req: NextRequest) {
   try {
     const authResult = await requireAuth(req);
     if (authResult instanceof NextResponse) return authResult;
-    const bills = await prisma.vendorBill.findMany({
-      include: {
-        vendor: {
-          select: { name: true, gstin: true }
-        }
-      },
-      orderBy: { date: 'desc' }
-    });
+
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const skip = (page - 1) * limit;
+
+    const [bills, total] = await Promise.all([
+      prisma.vendorBill.findMany({
+        include: {
+          vendor: {
+            select: { name: true, gstin: true }
+          }
+        },
+        orderBy: { date: 'desc' },
+        take: limit,
+        skip,
+      }),
+      prisma.vendorBill.count(),
+    ]);
     
-    return NextResponse.json({ data: bills });
+    return NextResponse.json({ 
+      success: true,
+      data: bills,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

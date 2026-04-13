@@ -15,10 +15,15 @@ interface PaymentsViewProps {
 
 export function PaymentsView({ onNavigate }: PaymentsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
-  const { data: paymentsResp, loading, revalidate } = useApi<any>('/api/payments');
-  const payments = paymentsResp?.data || [];
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
 
-  const totalPaid = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+  const { data: paymentsResp, loading, revalidate } = useApi<any>(`/api/payments?page=${page}&limit=${limit}`);
+  const payments = paymentsResp?.data || [];
+  const pagination = paymentsResp?.pagination || { total: 0 };
+  const summary = paymentsResp?.summary || { totalAmount: 0 };
+
+  const totalPaid = summary.totalAmount;
 
   if (isCreating) {
     return (
@@ -126,6 +131,11 @@ export function PaymentsView({ onNavigate }: PaymentsViewProps) {
         ]}
         data={payments}
         loading={loading}
+        totalCount={pagination.total}
+        currentPage={page}
+        pageSize={limit}
+        onPageChange={setPage}
+        onPageSizeChange={setLimit}
         searchPlaceholder="Search by payment #, vendor..."
       />
     </div>

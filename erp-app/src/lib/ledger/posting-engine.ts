@@ -277,6 +277,40 @@ export async function createContraEntry(
   };
 }
 
+/**
+ * Create ONLY a reversing (contra) transaction to void an original.
+ */
+export async function reverseTransaction(
+  originalTransactionId: string,
+  reason: string,
+  createdBy?: string
+): Promise<string> {
+  const original = await prisma.transaction.findUnique({
+    where: { id: originalTransactionId },
+    include: { journalEntries: true },
+  });
+
+  if (!original) throw new PostingError(`Transaction ${originalTransactionId} not found`);
+  if (!original.postedAt) throw new PostingError(`Transaction ${originalTransactionId} is not posted`);
+
+  const reversalLines: JournalLine[] = original.journalEntries.map((entry) => ({
+    accountId: entry.accountId,
+    amount: -Number(entry.amount),
+    entryType: entry.entryType === 'Dr' ? 'Cr' : 'Dr',
+  }));
+
+  const reversal = await createTransaction({
+    description: `VOID: ${reason} (reversal of ${originalTransactionId})`,
+    referenceId: originalTransactionId,
+    createdBy,
+    metadata: { contraType: 'void', originalTransactionId, reason },
+    lines: reversalLines,
+    postImmediately: true,
+  });
+
+  return reversal.transactionId;
+}
+
 // ============================================================
 // CUSTOM ERROR
 // ============================================================

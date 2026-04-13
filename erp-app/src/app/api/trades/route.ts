@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
     if (authResult instanceof NextResponse) return authResult;
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '100');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const skip = (page - 1) * limit;
+    
     const clientId = searchParams.get('clientId');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
@@ -40,19 +43,32 @@ export async function GET(request: NextRequest) {
       if (toDate) where.date.lte = new Date(toDate);
     }
 
-    const trades = await prisma.trade.findMany({
-      where,
-      orderBy: { date: 'desc' },
-      take: limit,
-      include: {
-        seller: { select: { id: true, name: true, code: true } },
-        buyer: { select: { id: true, name: true, code: true } },
-        product: { select: { id: true, name: true, sku: true } },
-        invoices: { select: { id: true, invoiceNumber: true, status: true, totalAmount: true } },
-      },
-    });
+    const [trades, total] = await Promise.all([
+      prisma.trade.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        take: limit,
+        skip,
+        include: {
+          seller: { select: { id: true, name: true, code: true } },
+          buyer: { select: { id: true, name: true, code: true } },
+          product: { select: { id: true, name: true, sku: true } },
+          invoices: { select: { id: true, invoiceNumber: true, status: true, totalAmount: true } },
+        },
+      }),
+      prisma.trade.count({ where })
+    ]);
 
-    return NextResponse.json({ success: true, data: trades });
+    return NextResponse.json({ 
+      success: true, 
+      data: trades,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('GET /api/trades error:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch trades' }, { status: 500 });

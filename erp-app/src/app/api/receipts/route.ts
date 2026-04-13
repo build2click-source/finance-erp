@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     let total = 0;
 
     if (!type || type === 'receipt') {
-      const [rows, count] = await Promise.all([
+      const [rows, count, sum] = await Promise.all([
         prisma.receipt.findMany({
           include: {
             client: { select: { id: true, name: true } },
@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
           skip,
         }),
         prisma.receipt.count(),
+        prisma.receipt.aggregate({ _sum: { amount: true } }),
       ]);
       total = count;
       receipts = rows.map(r => ({
@@ -54,15 +55,21 @@ export async function GET(req: NextRequest) {
         tdsAmount: r.tdsAmount ? Number(r.tdsAmount) : null,
         documentType: 'Receipt',
       }));
-    }
 
-    return NextResponse.json({
-      success: true,
-      data: receipts,
-      total,
-      page,
-      limit,
-    });
+      return NextResponse.json({
+        success: true,
+        data: receipts,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        },
+        summary: {
+          totalAmount: Number(sum._sum.amount || 0)
+        }
+      });
+    }
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

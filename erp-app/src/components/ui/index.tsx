@@ -506,23 +506,47 @@ export function Skeleton({ width = '100%', height = '16px', borderRadius = 'var(
 }
 
 /** Shorthand: a card-width block of stacked skeleton rows */
-export function SkeletonTable({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
+export function SkeletonTable({ rows = 5 }: { rows?: number }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      {/* Header row */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 'var(--space-4)', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-subtle)' }}>
-        {Array.from({ length: cols }).map((_, i) => (
-          <Skeleton key={i} height="12px" width="60%" />
-        ))}
-      </div>
-      {/* Data rows */}
-      {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 'var(--space-4)', padding: 'var(--space-3) var(--space-4)' }}>
-          {Array.from({ length: cols }).map((_, c) => (
-            <Skeleton key={c} height="14px" width={c === 0 ? '80%' : c === cols - 1 ? '50%' : '70%'} />
-          ))}
+    <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+          <Skeleton width="40%" height="16px" />
+          <Skeleton width="20%" height="16px" />
+          <Skeleton width="30%" height="16px" />
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Full page skeleton for standard module views */
+export function ViewSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', animation: 'fade-in 0.3s ease' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', flex: 1 }}>
+          <Skeleton width="40%" height="28px" />
+          <Skeleton width="60%" height="16px" />
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <Skeleton width="100px" height="36px" />
+          <Skeleton width="120px" height="36px" />
+        </div>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-4)' }}>
+        <Card><div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}><Skeleton width="40%" height="12px" /><Skeleton width="70%" height="24px" /></div></Card>
+        <Card><div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}><Skeleton width="40%" height="12px" /><Skeleton width="70%" height="24px" /></div></Card>
+        <Card><div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}><Skeleton width="40%" height="12px" /><Skeleton width="70%" height="24px" /></div></Card>
+      </div>
+
+      <Card padding={false}>
+        <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--border-subtle)' }}>
+          <Skeleton width="30%" height="32px" />
+        </div>
+        <SkeletonTable rows={8} />
+      </Card>
     </div>
   );
 }
@@ -618,3 +642,5 @@ export function ConfirmModal({
     </div>
   );
 }
+
+export * from './BulkUploadModal';

@@ -88,3 +88,29 @@ export async function PUT(
     return NextResponse.json({ success: false, error: 'Failed to update client' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    
+    // Check if client has invoices or other linked data
+    const linkedInvoices = await prisma.invoice.count({ where: { clientId: id } });
+    if (linkedInvoices > 0) {
+      // If linked data exists, we should probably archive/deactivate instead of hard delete
+      await prisma.client.update({
+        where: { id },
+        data: { status: 'inactive' }
+      });
+      return NextResponse.json({ success: true, message: 'Client deactivated (has linked records)' });
+    }
+
+    await prisma.client.delete({ where: { id } });
+    return NextResponse.json({ success: true, message: 'Client deleted' });
+  } catch (error) {
+    console.error(`DELETE /api/clients/[id] error:`, error);
+    return NextResponse.json({ success: false, error: 'Failed to delete client' }, { status: 500 });
+  }
+}

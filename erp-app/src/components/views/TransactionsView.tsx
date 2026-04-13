@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useMemo } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
@@ -13,18 +13,33 @@ interface TransactionsViewProps {
 }
 
 export function TransactionsView({ onNavigate }: TransactionsViewProps) {
-  const [isCreating, setIsCreating] = useState(false);
-  const { data: trxData, loading, revalidate } = useApi<any>('/api/transactions?limit=100');
-  const { data: clientsResp } = useApi<any>('/api/clients');
-  const transactions = trxData?.data || [];
-  const clients = clientsResp?.data || [];
-
   // Filter state
   const [selectedClient, setSelectedClient] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [isCreating, setIsCreating] = useState(false);
 
-  // Flatten the transactions into journal entry lines
+  const queryParams = new URLSearchParams();
+  if (selectedClient) queryParams.set('clientId', selectedClient);
+  if (dateFrom) queryParams.set('from', dateFrom);
+  if (dateTo) queryParams.set('to', dateTo);
+  queryParams.set('page', page.toString());
+  queryParams.set('limit', limit.toString());
+
+  const { data: trxData, loading, revalidate } = useApi<any>(`/api/transactions?${queryParams.toString()}`);
+  const { data: clientsResp } = useApi<any>('/api/clients');
+  const transactions = trxData?.data || [];
+  const pagination = trxData?.pagination || { total: 0 };
+  const clients = clientsResp?.data || [];
+
+  const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    setter(val);
+    setPage(1);
+  };
+
+  // Flatten the current slice of transactions into journal entry lines
   const flatLines = useMemo(() => {
     return transactions.flatMap((trx: any) =>
       (trx.journalEntries || []).map((je: any) => ({
@@ -40,17 +55,6 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
       }))
     );
   }, [transactions]);
-
-  // Filtered lines
-  const filteredLines = useMemo(() => {
-    return flatLines.filter((line: any) => {
-      const matchesClient = !selectedClient || line.clientId === selectedClient;
-      const lineDate = new Date(line.date);
-      const matchesFrom = !dateFrom || lineDate >= new Date(dateFrom);
-      const matchesTo = !dateTo || lineDate <= new Date(new Date(dateTo).setHours(23, 59, 59, 999));
-      return matchesClient && matchesFrom && matchesTo;
-    });
-  }, [flatLines, selectedClient, dateFrom, dateTo]);
 
   const columns = [
     { key: 'type', header: 'Type', render: (trx: any) => <span style={{ fontWeight: 500, textTransform: 'capitalize' }}>{trx.type.replace('_', ' ')}</span> },
@@ -73,7 +77,7 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
 
   const handleExportCSV = () => {
     const headers = ['Type', 'Ref No', 'Date', 'Particulars', 'Debit (Dr)', 'Credit (Cr)'];
-    const rows = filteredLines.map((line: any) => [
+    const rows = flatLines.map((line: any) => [
       line.type,
       line.no,
       line.dateFormatted,
@@ -109,14 +113,19 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
       <Card padding={false}>
         <DataTable
           columns={columns}
-          data={filteredLines}
+          data={flatLines}
           loading={loading}
+          totalCount={pagination.total}
+          currentPage={page}
+          pageSize={limit}
+          onPageChange={setPage}
+          onPageSizeChange={setLimit}
           searchPlaceholder="Search particulars, ref #..."
           filters={
             <>
               <Select
                 value={selectedClient}
-                onChange={(e) => setSelectedClient(e.target.value)}
+                onChange={(e) => handleFilterChange(setSelectedClient, e.target.value)}
                 options={[
                   { value: '', label: 'All Clients' },
                   ...clients.map((c: any) => ({ value: c.id, label: c.name })),
@@ -126,13 +135,13 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
               <Input 
                 type="date" 
                 value={dateFrom} 
-                onChange={(e) => setDateFrom(e.target.value)} 
+                onChange={(e) => handleFilterChange(setDateFrom, e.target.value)} 
                 style={{ width: '150px' }} 
               />
               <Input 
                 type="date" 
                 value={dateTo} 
-                onChange={(e) => setDateTo(e.target.value)} 
+                onChange={(e) => handleFilterChange(setDateTo, e.target.value)} 
                 style={{ width: '150px' }} 
               />
               <Button variant="secondary" onClick={handleClearFilters} size="sm">Clear</Button>

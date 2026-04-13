@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   let policy = null;
   try {
     policy = await prisma.systemPolicy.findUnique({
-      where: { role: session.role }
+      where: { role: session.role as any }
     });
   } catch (err) {
     console.error('Failed to fetch policy:', err);

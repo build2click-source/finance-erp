@@ -29,7 +29,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<ArrayBuffe
     ['deriveBits'],
   );
   return crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as any, iterations: 100_000, hash: 'SHA-256' },
     keyMaterial,
     256,
   );
@@ -47,7 +47,7 @@ export async function verifyPassword(plainPassword: string, storedHash: string):
   try {
     const [saltHex, hashHex] = storedHash.split(':');
     if (!saltHex || !hashHex) return false;
-    const salt = Buffer.from(saltHex, 'hex');
+    const salt = new Uint8Array(Buffer.from(saltHex, 'hex').buffer, Buffer.from(saltHex, 'hex').byteOffset, Buffer.from(saltHex, 'hex').byteLength);
     const hash = await deriveKey(plainPassword, salt);
     const derivedHex = Buffer.from(hash).toString('hex');
     // Constant-time comparison

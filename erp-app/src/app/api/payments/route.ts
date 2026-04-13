@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
 
-    const [payments, total] = await Promise.all([
+    const [payments, total, totalAmountSum] = await Promise.all([
       prisma.payment.findMany({
         include: {
           client: { select: { id: true, name: true, type: true } },
@@ -39,15 +39,21 @@ export async function GET(req: NextRequest) {
         skip,
       }),
       prisma.payment.count(),
+      prisma.payment.aggregate({ _sum: { amount: true } }),
     ]);
 
     return NextResponse.json({
       success: true,
       data: payments,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      },
+      summary: {
+        totalAmount: Number(totalAmountSum._sum.amount || 0),
+      }
     });
   } catch (error: any) {
     console.error('GET /api/payments error:', error);

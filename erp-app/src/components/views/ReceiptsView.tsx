@@ -1,8 +1,8 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
-import { PageHeader, Button, Card, Badge, Input, Select } from '@/components/ui';
+import { Plus, FileUp } from 'lucide-react';
+import { PageHeader, Button, Card, Badge, Input, Select, ConfirmModal, BulkUploadModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -15,32 +15,56 @@ interface ReceiptsViewProps {
 export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [detailReceipt, setDetailReceipt] = useState<any | null>(null);
+  const [voidingReceipt, setVoidingReceipt] = useState<any | null>(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [bankFilter, setBankFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
-  const { data: receiptsData, loading, revalidate } = useApi<any>('/api/receipts?limit=100');
+  const queryParams = new URLSearchParams();
+  if (fromDate) queryParams.set('from', fromDate);
+  if (toDate) queryParams.set('to', toDate);
+  if (bankFilter !== 'all') queryParams.set('bankId', bankFilter);
+  if (clientFilter !== 'all') queryParams.set('clientId', clientFilter);
+  queryParams.set('page', page.toString());
+  queryParams.set('limit', limit.toString());
+
+  const { data: receiptsData, loading, revalidate } = useApi<any>(`/api/receipts?${queryParams.toString()}`);
   const { data: banksResp } = useApi<any>('/api/banks');
   const { data: clientsResp } = useApi<any>('/api/clients');
 
   const receipts = receiptsData?.data || [];
+  const pagination = receiptsData?.pagination || { total: 0 };
   const banks = banksResp?.data || [];
   const clients = clientsResp?.data || [];
 
-  const filteredReceipts = React.useMemo(() => {
-    return receipts.filter((r: any) => {
-      const date = new Date(r.transactionDate).toISOString().split('T')[0];
-      const matchesDate = (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
-      const matchesBank = bankFilter === 'all' || r.bankAccountId === bankFilter;
-      const matchesClient = clientFilter === 'all' || r.clientId === clientFilter;
-      return matchesDate && matchesBank && matchesClient;
-    });
-  }, [receipts, fromDate, toDate, bankFilter, clientFilter]);
+  if (loading && !receipts.length) return <ViewSkeleton />;
+
+  const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    setter(val);
+    setPage(1);
+  };
 
   if (isCreating) {
     return <ReceiptForm onCancel={() => setIsCreating(false)} onSuccess={() => { setIsCreating(false); revalidate(); }} />;
   }
+
+  const handleVoidReceipt = async () => {
+    if (!voidingReceipt) return;
+    try {
+      const res = await fetch(`/api/receipts/${voidingReceipt.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Void failed');
+      revalidate();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to void receipt');
+    } finally {
+      setVoidingReceipt(null);
+    }
+  };
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
@@ -50,6 +74,9 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
         actions={
           <>
             <Button variant="secondary" onClick={() => onNavigate('dashboard')}>Dashboard</Button>
+            <Button variant="secondary" onClick={() => setShowBulkModal(true)}>
+              <FileUp size={16} /> Batch Upload
+            </Button>
             <Button onClick={() => setIsCreating(true)}>
               <Plus size={16} /> New Receipt
             </Button>
@@ -76,25 +103,30 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
             key: 'status',
             header: 'Status',
             render: (r) => (
-              <Badge variant={r.status === 'posted' ? 'success' : r.status === 'cancelled' ? 'danger' : r.status === 'draft' ? 'warning' : 'default'}>
+              <Badge variant={r.status === 'posted' ? 'success' : r.status === 'voided' ? 'danger' : r.status === 'draft' ? 'warning' : 'default'}>
                 {r.status.toUpperCase()}
               </Badge>
             ),
           },
         ]}
-        data={filteredReceipts}
+        data={receipts}
         loading={loading}
+        totalCount={pagination.total}
+        currentPage={page}
+        pageSize={limit}
+        onPageChange={setPage}
+        onPageSizeChange={setLimit}
         filters={
           <>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: '150px' }} />
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: '150px' }} />
+            <Input type="date" value={fromDate} onChange={(e) => handleFilterChange(setFromDate, e.target.value)} style={{ width: '150px' }} />
+            <Input type="date" value={toDate} onChange={(e) => handleFilterChange(setToDate, e.target.value)} style={{ width: '150px' }} />
             <Select
-              value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}
+              value={bankFilter} onChange={(e) => handleFilterChange(setBankFilter, e.target.value)}
               options={[{ value: 'all', label: 'All Banks' }, ...banks.map((b: any) => ({ value: b.id, label: b.bankName }))]}
               style={{ width: '150px' }}
             />
             <Select
-              value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}
+              value={clientFilter} onChange={(e) => handleFilterChange(setClientFilter, e.target.value)}
               options={[{ value: 'all', label: 'All Clients' }, ...clients.map((c: any) => ({ value: c.id, label: c.name }))]}
               style={{ width: '180px' }}
             />
@@ -102,13 +134,44 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
         }
         searchPlaceholder="Search by receipt #, client..."
         renderRowActions={(r: any) => (
-          <button
-            onClick={() => setDetailReceipt(r)}
-            style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
-          >
-            Details
-          </button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <button
+              onClick={() => setDetailReceipt(r)}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+            >
+              Details
+            </button>
+            {r.status === 'posted' && (
+              <button
+                onClick={() => setVoidingReceipt(r)}
+                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+              >
+                Void
+              </button>
+            )}
+            {r.status === 'draft' && (
+              <button
+                onClick={() => setVoidingReceipt(r)}
+                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+              >
+                Delete
+              </button>
+            )}
+          </div>
         )}
+      />
+
+      <ConfirmModal
+        open={!!voidingReceipt}
+        title={voidingReceipt?.status === 'posted' ? 'Void Receipt?' : 'Delete Draft?'}
+        message={voidingReceipt?.status === 'posted' 
+          ? `Are you sure you want to void receipt "${voidingReceipt?.receiptNumber}"? This will reverse the ledger impact.`
+          : `Are you sure you want to delete draft "${voidingReceipt?.receiptNumber}"?`
+        }
+        confirmLabel={voidingReceipt?.status === 'posted' ? 'Void' : 'Delete'}
+        variant="danger"
+        onConfirm={handleVoidReceipt}
+        onCancel={() => setVoidingReceipt(null)}
       />
 
       {/* Detail Modal */}
@@ -143,6 +206,24 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
           </div>
         </div>
       )}
+
+      <BulkUploadModal
+        open={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        title="Batch Import Receipts"
+        entityName="Receipts"
+        endpoint="/api/receipts/bulk"
+        onSuccess={revalidate}
+        columns={[
+          { key: 'date', label: 'Date', required: true },
+          { key: 'client', label: 'Client', required: true },
+          { key: 'amount', label: 'Amount', required: true },
+          { key: 'bank', label: 'Bank', required: true },
+          { key: 'mode', label: 'Mode' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'notes', label: 'Notes' },
+        ]}
+      />
     </div>
   );
 }

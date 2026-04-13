@@ -18,8 +18,11 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editBill, setEditBill] = useState<any | null>(null);
   const [confirmPostId, setConfirmPostId] = useState<string | null>(null);
-  const { data: billsResp, loading, revalidate } = useApi<any>('/api/vendor-bills');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const { data: billsResp, loading, revalidate } = useApi<any>(`/api/vendor-bills?page=${page}&limit=${limit}`);
   const bills = billsResp?.data || [];
+  const pagination = billsResp?.pagination || { total: 0 };
   const { canFinalizeInvoices } = useRole();
   const { success, error } = useToast();
 
@@ -107,6 +110,11 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
         ]}
         data={bills}
         loading={loading}
+        totalCount={pagination.total}
+        currentPage={page}
+        pageSize={limit}
+        onPageChange={setPage}
+        onPageSizeChange={setLimit}
         searchPlaceholder="Search by bill #, vendor..."
         renderRowActions={(b: any) => (
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>

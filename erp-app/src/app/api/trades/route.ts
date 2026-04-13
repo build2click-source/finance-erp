@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get('clientId');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
+    const search = searchParams.get('search');
 
     const where: any = {};
     if (clientId) {
@@ -37,6 +38,27 @@ export async function GET(request: NextRequest) {
         { buyerId: clientId }
       ];
     }
+
+    if (search) {
+      const searchFilter = {
+        OR: [
+          { seller: { name: { contains: search, mode: 'insensitive' } } },
+          { buyer: { name: { contains: search, mode: 'insensitive' } } },
+          { product: { name: { contains: search, mode: 'insensitive' } } }
+        ]
+      };
+      
+      if (where.OR) {
+        where.AND = [
+          { OR: where.OR },
+          searchFilter
+        ];
+        delete where.OR;
+      } else {
+        where.OR = searchFilter.OR;
+      }
+    }
+
     if (fromDate || toDate) {
       where.date = {};
       if (fromDate) where.date.gte = new Date(fromDate);

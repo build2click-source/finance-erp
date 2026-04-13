@@ -22,6 +22,7 @@ export function TradesView({ onNavigate }: TradesViewProps) {
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const cf = sessionStorage.getItem('clientFilter');
@@ -40,6 +41,7 @@ export function TradesView({ onNavigate }: TradesViewProps) {
   if (clientIdFilter) queryParams.set('clientId', clientIdFilter);
   if (fromDate) queryParams.set('fromDate', fromDate);
   if (toDate) queryParams.set('toDate', toDate);
+  if (searchQuery) queryParams.set('search', searchQuery);
   queryParams.set('page', page.toString());
   queryParams.set('limit', limit.toString());
 
@@ -134,6 +136,7 @@ export function TradesView({ onNavigate }: TradesViewProps) {
         onPageChange={setPage}
         onPageSizeChange={setLimit}
         searchPlaceholder="Search trades..."
+        onSearch={(v) => { setSearchQuery(v); setPage(1); }}
         renderRowActions={(t) => (
           <button
             onClick={() => alert("Trade editing directly is unavailable. Please process adjustments via credit/debit notes.")}

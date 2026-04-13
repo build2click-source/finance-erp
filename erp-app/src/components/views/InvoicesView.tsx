@@ -19,13 +19,24 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   const [activeForm, setActiveForm] = useState<{ mode: 'create' | 'edit', id?: string } | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   
+  const [clientIdFilter, setClientIdFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
 
+  useEffect(() => {
+    const cf = sessionStorage.getItem('clientFilter');
+    if (cf) {
+      setClientIdFilter(cf);
+      sessionStorage.removeItem('clientFilter');
+      setLimit(10);
+    }
+  }, []);
+
   const queryParams = new URLSearchParams();
+  if (clientIdFilter) queryParams.set('clientId', clientIdFilter);
   if (fromDate) queryParams.set('from', fromDate);
   if (toDate) queryParams.set('to', toDate);
   if (statusFilter !== 'all') queryParams.set('status', statusFilter);
@@ -35,6 +46,9 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   const { data: invoicesResp, loading, error, revalidate } = useApi<any>(`/api/invoices?${queryParams.toString()}`);
   const invoices = invoicesResp?.data || [];
   const pagination = invoicesResp?.pagination || { total: 0 };
+
+  const { data: clientResp } = useApi<any>('/api/clients');
+  const clients = clientResp?.data || [];
 
   const { canFinalizeInvoices } = useRole();
   if (loading && !invoices.length) return <ViewSkeleton />;
@@ -137,19 +151,25 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
             onPageSizeChange={setLimit}
             filters={
               <>
+                <Select
+                  value={clientIdFilter}
+                  onChange={(e) => handleFilterChange(setClientIdFilter, e.target.value)}
+                  options={[{ value: '', label: 'All Clients' }, ...clients.map((c: any) => ({ value: c.id, label: c.name }))]}
+                  style={{ width: '200px' }}
+                />
                 <Input 
                   type="date" 
                   value={fromDate} 
                   onChange={(e) => handleFilterChange(setFromDate, e.target.value)} 
                   placeholder="From Date"
-                  style={{ width: '150px' }}
+                  style={{ width: '130px' }}
                 />
                 <Input 
                   type="date" 
                   value={toDate} 
                   onChange={(e) => handleFilterChange(setToDate, e.target.value)} 
                   placeholder="To Date"
-                  style={{ width: '150px' }}
+                  style={{ width: '130px' }}
                 />
                 <Select
                   value={statusFilter}
@@ -159,7 +179,7 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
                     { value: 'draft', label: 'Draft' },
                     { value: 'posted', label: 'Posted' }
                   ]}
-                  style={{ width: '130px' }}
+                  style={{ width: '110px' }}
                 />
               </>
             }

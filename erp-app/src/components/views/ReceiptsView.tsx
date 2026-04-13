@@ -164,7 +164,7 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
       <ConfirmModal
         open={!!voidingReceipt}
         title={voidingReceipt?.status === 'posted' ? 'Void Receipt?' : 'Delete Draft?'}
-        message={voidingReceipt?.status === 'posted' 
+        message={voidingReceipt?.status === 'posted'
           ? `Are you sure you want to void receipt "${voidingReceipt?.receiptNumber}"? This will reverse the ledger impact.`
           : `Are you sure you want to delete draft "${voidingReceipt?.receiptNumber}"?`
         }
@@ -244,38 +244,38 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
   const [formData, setFormData] = useState({
     bankAccountId: '',
     clientId: '',
-    amount: '', // Net Received
-    grossAmount: '',
-    tdsRate: '0',
+    taxableAmount: '',
+    netAmount: '',
+    amount: '', // Represents Final Received Amount / New Net
     transactionDate: new Date().toISOString().split('T')[0],
     reference: '',
     paymentMethod: 'NEFT',
-    tdsDeducted: '0', 
+    tdsDeducted: '0',
     status: 'posted',
     invoiceId: '',
   });
 
-  const updateCalculations = (updates: Partial<typeof formData>) => {
-    const next = { ...formData, ...updates };
+  const handleCalc16 = () => {
+    const taxable = parseFloat(formData.taxableAmount) || 0;
+    const net = parseFloat(formData.netAmount) || 0;
     
-    // Auto-calculate if Gross or TDS Rate changes
-    if ('grossAmount' in updates || 'tdsRate' in updates) {
-      const gross = parseFloat(next.grossAmount) || 0;
-      const rate = parseFloat(next.tdsRate) || 0;
-      const tds = (gross * rate) / 100;
-      next.tdsDeducted = tds > 0 ? tds.toFixed(2) : '0';
-      next.amount = (gross - tds).toFixed(2);
-    } 
-    // If TDS Amount (tdsDeducted) is manually changed, update Net
-    else if ('tdsDeducted' in updates) {
-      const gross = parseFloat(next.grossAmount) || 0;
-      const tds = parseFloat(next.tdsDeducted) || 0;
-      next.amount = (gross - tds).toFixed(2);
-      // Optional: update rate? (tds / gross * 100)
+    if (taxable <= 0) {
+      alert("Please enter a valid Taxable Amount.");
+      return;
     }
-    // If Net (amount) is manually changed, update TDS? (Usually Gross is master)
+    if (net <= 0) {
+      alert("Please enter a valid Net Amount (with GST).");
+      return;
+    }
 
-    setFormData(next);
+    const newNet = taxable * 1.16;
+    const tds = net - newNet;
+    
+    setFormData(prev => ({
+      ...prev,
+      amount: newNet.toFixed(2),
+      tdsDeducted: tds > 0 ? tds.toFixed(2) : '0'
+    }));
   };
 
   const filteredInvoices = formData.clientId
@@ -359,10 +359,15 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                   const val = e.target.value;
                   const inv = invoices.find((i: any) => i.id === val);
                   if (inv) {
-                     // Auto suggest amount without TDS computation 
-                     setFormData({ ...formData, invoiceId: val, amount: String(inv.totalAmount) });
+                    const taxable = Number(inv.totalAmount) - Number(inv.totalTax || 0);
+                    setFormData({ 
+                      ...formData, 
+                      invoiceId: val, 
+                      netAmount: String(inv.totalAmount),
+                      taxableAmount: String(taxable)
+                    });
                   } else {
-                     setFormData({ ...formData, invoiceId: val });
+                    setFormData({ ...formData, invoiceId: val });
                   }
                 }}
                 disabled={!formData.clientId}
@@ -385,54 +390,59 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               <div style={{ gridColumn: 'span 2' }}>
                 <Input label="Transaction Reference Number (UTR)" placeholder="e.g. UTR123456789" value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} />
               </div>
-              
-              <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--space-4)', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    Gross Amount
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
-                    <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.grossAmount} onChange={e => updateCalculations({ grossAmount: e.target.value })} />
-                  </div>
-                </div>
-                
-                <Select
-                  label="TDS Rate (%)"
-                  value={formData.tdsRate}
-                  onChange={e => updateCalculations({ tdsRate: e.target.value })}
-                  options={[
-                    { value: '0', label: 'No TDS (0%)' },
-                    { value: '1', label: '1%' },
-                    { value: '2', label: '2%' },
-                    { value: '5', label: '5%' },
-                    { value: '10', label: '10%' },
-                  ]}
-                />
 
-                <div>
-                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    TDS Amount
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
-                    <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.tdsDeducted} onChange={e => updateCalculations({ tdsDeducted: e.target.value })} />
+              <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Taxable Amount (Without GST)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
+                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.taxableAmount} onChange={e => setFormData({ ...formData, taxableAmount: e.target.value })} />
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Final Net Received
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-primary)', fontWeight: 'bold' }}>₹</span>
-                  <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px', fontWeight: 'bold', color: 'var(--text-primary)' }} value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                      Net Amount (With GST)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
+                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.netAmount} onChange={e => setFormData({ ...formData, netAmount: e.target.value })} />
+                    </div>
+                  </div>
+
+                  <Button onClick={handleCalc16} type="button" style={{ height: '42px', padding: '0 24px' }}>
+                     Calculate 16%
+                  </Button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', marginBottom: '6px' }}>
+                      TDS Deducted (Auto-calc)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
+                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.tdsDeducted} onChange={e => setFormData({ ...formData, tdsDeducted: e.target.value })} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                      Received Amount / New Net
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-primary)', fontWeight: 'bold' }}>₹</span>
+                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px', fontWeight: 'bold', color: 'var(--text-primary)' }} value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <Input label="Transaction Date" type="date" value={formData.transactionDate} onChange={e => setFormData({ ...formData, transactionDate: e.target.value })} />
-              
+
               <div style={{ gridColumn: 'span 2' }}>
                 <Select
                   label="Initial Posting Status"

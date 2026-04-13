@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, FileUp } from 'lucide-react';
+import { Plus, FileUp, Edit, EyeOff } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select, Textarea, ConfirmModal, BulkUploadModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -150,7 +150,9 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
             header: 'Client Name',
             render: (c) => (
               <div>
-                <p style={{ fontWeight: 500, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <p 
+                  onClick={() => setViewingClient(c)}
+                  style={{ fontWeight: 500, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', textDecoration: 'underline' }}>
                   {c.name}
                 </p>
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: '2px' }}>
@@ -179,30 +181,38 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
         }
         searchPlaceholder="Search by name, code, or GSTIN..."
         renderRowActions={(c: any) => (
-          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-            <button
-              onClick={() => setViewingClient(c)}
-              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
-            >
-              View
-            </button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
             <button
               onClick={() => setEditingClient(c)}
-              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+              title="Edit"
+              style={{ color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
             >
-              Edit
+              <Edit size={16} />
             </button>
             <button
-              onClick={() => onNavigate('invoices')}
-              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+              onClick={() => {
+                sessionStorage.setItem('clientFilter', c.id);
+                onNavigate('invoices');
+              }}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', whiteSpace: 'nowrap' }}
             >
               Invoices
             </button>
             <button
-              onClick={() => setDeletingClient(c)}
-              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+              onClick={() => {
+                sessionStorage.setItem('clientFilter', c.id);
+                onNavigate('data-entry');
+              }}
+              style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px', whiteSpace: 'nowrap' }}
             >
-              Archive
+              Trades
+            </button>
+            <button
+              onClick={() => setDeletingClient(c)}
+              title="Archive"
+              style={{ color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+            >
+              <EyeOff size={16} />
             </button>
           </div>
         )}

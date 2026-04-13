@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Printer, MessageSquare, Mail, Calendar, Filter } from 'lucide-react';
+import { Search, Printer, Mail, Edit, Check, X } from 'lucide-react';
 import { PageHeader, Button, Card, Input, Select, Badge } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
@@ -16,20 +16,48 @@ export function TradeSummaryView() {
   const [clientQuery, setClientQuery] = useState('');
   const [isClientBoxOpen, setIsClientBoxOpen] = useState(false);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  
+  // Trades selection
   const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
   const [showDraftBill, setShowDraftBill] = useState(false);
   
+  // Custom Overrides (doesn't modify DB, only affects UI & draft bill)
+  const [draftOverrides, setDraftOverrides] = useState<Record<string, { quantity: string, price: string, commissionAmt: string, remarks: string }>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ quantity: '', price: '', commissionAmt: '', remarks: '' });
+
+  // Period / Filters
   const [period, setPeriod] = useState<'custom' | 'month' | 'quarter' | 'half' | 'year'>('month');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  
+  // Limits
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(25);
+  const [limit, setLimit] = useState(1000); // High limit for universal view
 
-  const handleFilterChange = () => {
-    setPage(1);
+  // Draft Bill Column Configurations
+  const [draftCols, setDraftCols] = useState({
+    date: true,
+    product: true,
+    qty: true,
+    price: false,
+    comm: true,
+    remark: true
+  });
+
+  // Derived effective trade objects combining DB + Override
+  const applyOverrides = (trade: any) => {
+    const over = draftOverrides[trade.id];
+    if (!over) return trade;
+    return {
+      ...trade,
+      quantity: over.quantity !== undefined ? over.quantity : trade.quantity,
+      price: over.price !== undefined ? over.price : trade.price,
+      commissionAmt: over.commissionAmt !== undefined ? over.commissionAmt : trade.commissionAmt,
+      remarks: over.remarks !== undefined ? over.remarks : trade.remarks
+    };
   };
 
-  // Auto-set dates based on period
   useEffect(() => {
     const today = new Date();
     let start = new Date();
@@ -52,8 +80,11 @@ export function TradeSummaryView() {
     }
 
     if (period !== 'custom') {
-      setFromDate(start.toISOString().split('T')[0]);
-      setToDate(end.toISOString().split('T')[0]);
+      // Avoid firing redundant set states
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      if (fromDate !== startStr) setFromDate(startStr);
+      if (toDate !== endStr) setToDate(endStr);
     }
   }, [period]);
 
@@ -67,7 +98,7 @@ export function TradeSummaryView() {
     return `/api/trades?${params.toString()}`;
   }, [selectedClientId, fromDate, toDate, page, limit]);
 
-  const { data: tradesResp, loading, revalidate } = useApi<any>(fetchUrl || '');
+  const { data: tradesResp, loading } = useApi<any>(fetchUrl || '');
   const trades = tradesResp?.data || [];
 
   const filteredClients = useMemo(() => {
@@ -75,15 +106,26 @@ export function TradeSummaryView() {
     return clients.filter((c: any) => c.name.toLowerCase().includes(clientQuery.toLowerCase()));
   }, [clients, clientQuery]);
 
+  // Map trades through overrides automatically for tables
+  const effectiveTrades = useMemo(() => {
+    return trades.map(applyOverrides);
+  }, [trades, draftOverrides]);
+
+  const selectedEffectiveTrades = useMemo(() => 
+    effectiveTrades.filter((t: any) => selectedTradeIds.has(t.id)),
+  [effectiveTrades, selectedTradeIds]);
+
+  // Aggregate dynamically based on SELECTED trades if there is a selection, otherwise calculate overall effective
   const totals = useMemo(() => {
-    return trades.reduce((acc: any, t: any) => ({
+    const source = selectedTradeIds.size > 0 ? selectedEffectiveTrades : effectiveTrades;
+    return source.reduce((acc: any, t: any) => ({
       qty: acc.qty + Number(t.quantity),
       commission: acc.commission + Number(t.commissionAmt)
     }), { qty: 0, commission: 0 });
-  }, [trades]);
+  }, [effectiveTrades, selectedEffectiveTrades, selectedTradeIds]);
 
   const toggleAll = () => {
-    if (selectedTradeIds.size === trades.length) {
+    if (selectedTradeIds.size === trades.length && trades.length > 0) {
       setSelectedTradeIds(new Set());
     } else {
       setSelectedTradeIds(new Set(trades.map((t: any) => t.id)));
@@ -97,17 +139,54 @@ export function TradeSummaryView() {
     setSelectedTradeIds(next);
   };
 
-  const selectedTrades = useMemo(() => 
-    trades.filter((t: any) => selectedTradeIds.has(t.id)),
-  [trades, selectedTradeIds]);
+  // Inline Editing Lifecycle
+  const openEdit = (tradeId: string) => {
+    const t = effectiveTrades.find(t => t.id === tradeId);
+    if (!t) return;
+    setEditingId(tradeId);
+    setEditForm({
+      quantity: String(t.quantity),
+      price: String(t.price),
+      commissionAmt: String(t.commissionAmt),
+      remarks: t.remarks || ''
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    const originalTrade = trades.find((t: any) => t.id === editingId);
+    
+    const isCoreChanged = (
+      String(originalTrade.quantity) !== editForm.quantity || 
+      String(originalTrade.price) !== editForm.price || 
+      String(originalTrade.commissionAmt) !== editForm.commissionAmt
+    );
+    
+    if (isCoreChanged && !editForm.remarks.trim()) {
+      alert("A Remark is mandatory when altering original data fields for the draft bill.");
+      return;
+    }
+
+    setDraftOverrides(prev => ({
+      ...prev,
+      [editingId]: { ...editForm }
+    }));
+    setEditingId(null);
+  };
 
   if (showDraftBill) {
     return (
       <DraftBillPreview 
-        trades={selectedTrades} 
+        trades={selectedEffectiveTrades} 
         client={clients.find((c: any) => c.id === selectedClientId)}
         periodLabel={`${new Date(fromDate).toLocaleDateString('en-IN', { month: 'short' }).toUpperCase()} - ${new Date(toDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }).toUpperCase()}`}
         onBack={() => setShowDraftBill(false)} 
+        draftCols={draftCols}
+        setDraftCols={setDraftCols}
       />
     );
   }
@@ -116,11 +195,92 @@ export function TradeSummaryView() {
     return <InvoicePreview id={previewInvoiceId} onBack={() => setPreviewInvoiceId(null)} />;
   }
 
+  const columns = [
+    {
+      key: 'selection',
+      header: '',
+      render: (row: any) => (
+        <input 
+          type="checkbox" 
+          checked={selectedTradeIds.has(row.id)}
+          onChange={() => toggleOne(row.id)}
+        />
+      ),
+      width: '40px'
+    },
+    {
+      key: 'date',
+      header: 'Date',
+      render: (row: any) => new Date(row.date).toLocaleDateString('en-IN')
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (row: any) => {
+        const isBuy = row.buyerId === selectedClientId;
+        return <Badge variant={isBuy ? 'warning' : 'success'}>{isBuy ? 'BUY' : 'SELL'}</Badge>;
+      }
+    },
+    {
+      key: 'partner',
+      header: 'Partner',
+      render: (row: any) => (row.buyerId === selectedClientId ? row.seller?.name : row.buyer?.name)
+    },
+    {
+      key: 'product',
+      header: 'Product',
+      render: (row: any) => row.product?.name
+    },
+    {
+      key: 'quantity',
+      header: 'Qty/MT',
+      align: 'right' as const,
+      render: (row: any) => {
+        if (editingId === row.id) {
+          return <Input type="number" value={editForm.quantity} onChange={e => setEditForm({ ...editForm, quantity: e.target.value })} style={{ width: '80px', display: 'inline-block' }} />;
+        }
+        return <span style={{ color: draftOverrides[row.id]?.quantity ? 'var(--primary)' : 'inherit' }}>{row.quantity}</span>;
+      }
+    },
+    {
+      key: 'price',
+      header: 'Price',
+      align: 'right' as const,
+      render: (row: any) => {
+        if (editingId === row.id) {
+          return <Input type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })} style={{ width: '80px', display: 'inline-block' }} />;
+        }
+        return <span style={{ color: draftOverrides[row.id]?.price ? 'var(--primary)' : 'inherit' }}>₹{Number(row.price).toLocaleString('en-IN')}</span>;
+      }
+    },
+    {
+      key: 'commissionAmt',
+      header: 'Comm.',
+      align: 'right' as const,
+      render: (row: any) => {
+        if (editingId === row.id) {
+          return <Input type="number" value={editForm.commissionAmt} onChange={e => setEditForm({ ...editForm, commissionAmt: e.target.value })} style={{ width: '100px', display: 'inline-block' }} />;
+        }
+        return <strong style={{ color: 'var(--primary)' }}>₹{Number(row.commissionAmt).toLocaleString('en-IN')}</strong>;
+      }
+    },
+    {
+      key: 'remarks',
+      header: 'Remarks',
+      render: (row: any) => {
+        if (editingId === row.id) {
+          return <Input type="text" value={editForm.remarks} onChange={e => setEditForm({ ...editForm, remarks: e.target.value })} style={{ width: '120px', display: 'inline-block' }} />;
+        }
+        return <span style={{ color: 'var(--text-secondary)' }}>{row.remarks || '—'}</span>;
+      }
+    }
+  ];
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       <PageHeader
         title="Trade Summary"
-        description="Comprehensive report of Buy & Sell trades for a specific client."
+        description="Select specific trades, modify display limits, and instantly draft custom bills."
         actions={
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             {selectedTradeIds.size > 0 && (
@@ -211,11 +371,11 @@ export function TradeSummaryView() {
             <div style={{ display: 'flex', gap: 'var(--space-4)', paddingBottom: '4px' }}>
                 <div style={{ flex: 1, backgroundColor: 'var(--surface-container-high)', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>Total Qty (MT)</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>{totals.qty}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>{totals.qty.toFixed(2)}</div>
                 </div>
                 <div style={{ flex: 1, backgroundColor: 'var(--surface-container-high)', padding: '12px', borderRadius: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-tertiary)', fontWeight: 600 }}>Total Comm.</div>
-                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)' }}>₹{totals.commission.toLocaleString('en-IN')}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--primary)' }}>₹{totals.commission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                 </div>
             </div>
           </div>
@@ -230,73 +390,33 @@ export function TradeSummaryView() {
       ) : (
         <DataTable
           loading={loading}
-          data={trades}
+          data={effectiveTrades}
+          disableSearch={true}
           totalCount={tradesResp?.pagination?.total || 0}
           currentPage={page}
           pageSize={limit}
           onPageChange={setPage}
           onPageSizeChange={setLimit}
-          columns={[
-            {
-              key: 'selection',
-              header: '',
-              render: (row: any) => (
-                <input 
-                  type="checkbox" 
-                  checked={selectedTradeIds.has(row.id)}
-                  onChange={() => toggleOne(row.id)}
-                />
-              ),
-              width: '40px'
-            },
-            {
-              key: 'date',
-              header: 'Date',
-              render: (row: any) => new Date(row.date).toLocaleDateString('en-IN')
-            },
-            {
-              key: 'type',
-              header: 'Type',
-              render: (row: any) => {
-                const isBuy = row.buyerId === selectedClientId;
-                return <Badge variant={isBuy ? 'warning' : 'success'}>{isBuy ? 'BUY' : 'SELL'}</Badge>;
-              }
-            },
-            {
-              key: 'partner',
-              header: 'Partner',
-              render: (row: any) => (row.buyerId === selectedClientId ? row.seller?.name : row.buyer?.name)
-            },
-            {
-              key: 'product',
-              header: 'Product',
-              render: (row: any) => row.product?.name
-            },
-            {
-              key: 'quantity',
-              header: 'Qty/MT',
-              render: (row: any) => row.quantity,
-              align: 'right'
-            },
-            {
-              key: 'price',
-              header: 'Price',
-              render: (row: any) => `₹${Number(row.price).toLocaleString('en-IN')}`,
-              align: 'right'
-            },
-            {
-              key: 'commissionAmt',
-              header: 'Comm.',
-              render: (row: any) => (
-                <strong style={{ color: 'var(--primary)' }}>₹{Number(row.commissionAmt).toLocaleString('en-IN')}</strong>
-              ),
-              align: 'right'
+          columns={columns}
+          renderRowActions={(row: any) => {
+            if (editingId === row.id) {
+              return (
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={saveEdit} style={{ background: 'none', border: 'none', color: 'var(--color-command-green)', cursor: 'pointer' }}><Check size={16} /></button>
+                  <button onClick={cancelEdit} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer' }}><X size={16} /></button>
+                </div>
+              )
             }
-          ]}
+            return (
+              <button onClick={() => openEdit(row.id)} title="Edit Draft Overrides" style={{ padding: '6px', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <Edit size={16} />
+              </button>
+            )
+          }}
           filters={
             <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
               <Button size="sm" variant="secondary" onClick={toggleAll}>
-                {selectedTradeIds.size === trades.length && trades.length > 0 ? 'Deselect All' : 'Select All on Page'}
+                {selectedTradeIds.size === trades.length && trades.length > 0 ? 'Deselect All' : 'Select All Trades'}
               </Button>
             </div>
           }
@@ -309,11 +429,13 @@ export function TradeSummaryView() {
 /* ============================================================
    MODERN DRAFT BILL PREVIEW
    ============================================================ */
-function DraftBillPreview({ trades, client, periodLabel, onBack }: { 
+function DraftBillPreview({ trades, client, periodLabel, onBack, draftCols, setDraftCols }: { 
   trades: any[], 
   client: any, 
   periodLabel: string,
-  onBack: () => void 
+  onBack: () => void,
+  draftCols: any,
+  setDraftCols: any
 }) {
   const { data: companyResp } = useApi<any>('/api/setup-company');
   const company = companyResp?.profile;
@@ -335,8 +457,12 @@ function DraftBillPreview({ trades, client, periodLabel, onBack }: {
     window.location.href = `mailto:${client?.email || ''}?subject=Draft Bill ${periodLabel}&body=Please find the draft bill for the period ${periodLabel}. Total: ₹${totalCommission.toLocaleString('en-IN')}`;
   };
 
+  const toggleCol = (key: string) => {
+    setDraftCols((prev: any) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+    <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: 'var(--space-10)' }}>
       <PageHeader
         title="Draft Bill Preview"
         actions={
@@ -348,6 +474,21 @@ function DraftBillPreview({ trades, client, periodLabel, onBack }: {
           </div>
         }
       />
+
+      {/* Bill Options Bar */}
+      <Card padding={false} style={{ padding: 'var(--space-4)', backgroundColor: 'var(--surface-container-low)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-6)' }}>
+          <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-secondary)' }}>Toggle Visible Columns:</span>
+          {Object.entries({
+             date: 'Date', product: 'Product / Partner', qty: 'Qty / MT', price: 'Price', comm: 'Amount', remark: 'Remarks'
+          }).map(([k, label]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={draftCols[k]} onChange={() => toggleCol(k)} />
+              {label}
+            </label>
+          ))}
+        </div>
+      </Card>
 
       <div className="printable-bill" style={{ 
         backgroundColor: 'white', color: '#0e1629', padding: '60px', 
@@ -392,22 +533,28 @@ function DraftBillPreview({ trades, client, periodLabel, onBack }: {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '2px solid #000' }}>
-                <th style={{ padding: '12px 0' }}>Date</th>
-                <th style={{ padding: '12px 0' }}>Particulars (Product / Partner)</th>
-                <th style={{ padding: '12px 0', textAlign: 'right' }}>Qty/MT</th>
-                <th style={{ padding: '12px 0', textAlign: 'right' }}>Commission Amt</th>
+                {draftCols.date && <th style={{ padding: '12px 0' }}>Date</th>}
+                {draftCols.product && <th style={{ padding: '12px 0' }}>Particulars (Product / Partner)</th>}
+                {draftCols.remark && <th style={{ padding: '12px 0' }}>Remarks</th>}
+                {draftCols.qty && <th style={{ padding: '12px 0', textAlign: 'right' }}>Qty/MT</th>}
+                {draftCols.price && <th style={{ padding: '12px 0', textAlign: 'right' }}>Price</th>}
+                {draftCols.comm && <th style={{ padding: '12px 0', textAlign: 'right' }}>Commission Amt</th>}
               </tr>
             </thead>
             <tbody>
               {trades.map((t, idx) => (
                 <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px 0' }}>{new Date(t.date).toLocaleDateString('en-IN')}</td>
-                  <td style={{ padding: '12px 0' }}>
-                    <div style={{ fontWeight: 600 }}>{t.product?.name}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>{t.buyerId === client?.id ? `from ${t.seller?.name}` : `to ${t.buyer?.name}`}</div>
-                  </td>
-                  <td style={{ padding: '12px 0', textAlign: 'right' }}>{Number(t.quantity).toFixed(2)}</td>
-                  <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 600 }}>₹{Number(t.commissionAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                  {draftCols.date && <td style={{ padding: '12px 0' }}>{new Date(t.date).toLocaleDateString('en-IN')}</td>}
+                  {draftCols.product && (
+                    <td style={{ padding: '12px 0' }}>
+                      <div style={{ fontWeight: 600 }}>{t.product?.name}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>{t.buyerId === client?.id ? `from ${t.seller?.name}` : `to ${t.buyer?.name}`}</div>
+                    </td>
+                  )}
+                  {draftCols.remark && <td style={{ padding: '12px 0', color: '#64748b' }}>{t.remarks || '—'}</td>}
+                  {draftCols.qty && <td style={{ padding: '12px 0', textAlign: 'right' }}>{Number(t.quantity).toFixed(2)}</td>}
+                  {draftCols.price && <td style={{ padding: '12px 0', textAlign: 'right' }}>₹{Number(t.price).toLocaleString('en-IN')}</td>}
+                  {draftCols.comm && <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 600 }}>₹{Number(t.commissionAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>}
                 </tr>
               ))}
             </tbody>

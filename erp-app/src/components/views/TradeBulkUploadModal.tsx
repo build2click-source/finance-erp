@@ -165,7 +165,20 @@ export function TradeBulkUploadModal({ open, onClose, onSuccess }: TradeBulkUplo
             <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, margin: 0 }}>Bulk Upload Trades (CSV)</h2>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Map CSV headers to: Date, Seller, Buyer, Product, Qty, Price, Comm Rate, Comm Amt.</p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}><X size={20} /></button>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+            <Button variant="secondary" size="sm" onClick={() => {
+              const headers = "Date,Seller,Buyer,Product,Qty,Price,Comm Rate,Comm Amt\n2026-04-01,Seller Example,Buyer Example,Product SKU,100,500,1,500";
+              const blob = new Blob([headers], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'trade_upload_template.csv';
+              a.click();
+            }}>
+              Download Template
+            </Button>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}><X size={20} /></button>
+          </div>
         </div>
 
         {/* Content */}

@@ -33,7 +33,7 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
       const imgProps = (pdf as any).getImageProperties(imgData) as any;
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
+
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Invoice_${invoice.invoiceNumber || 'Draft'}.pdf`);
     } catch (err) {
@@ -46,15 +46,15 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
     try {
       const res = await fetch(`/api/receipts/${id}`, { method: 'DELETE' }); // Reusing the void logic via DELETE /api/invoices/[id]
       // Wait, I need to check if I added DELETE to api/invoices/[id]
-    } catch (e) {}
+    } catch (e) { }
   };
-  
+
   const handleWhatsApp = () => {
     const text = `Invoice from ${company?.name || 'ARM Enterprises'}\n` +
-                 `Invoice No: ${invoice.invoiceNumber}\n` +
-                 `Date: ${new Date(invoice.date).toLocaleDateString('en-IN')}\n` +
-                 `Amount: ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}\n` +
-                 `Status: ${invoice.status.toUpperCase()}`;
+      `Invoice No: ${invoice.invoiceNumber}\n` +
+      `Date: ${new Date(invoice.date).toLocaleDateString('en-IN')}\n` +
+      `Amount: ₹${Number(invoice.totalAmount).toLocaleString('en-IN')}\n` +
+      `Status: ${invoice.status.toUpperCase()}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -105,7 +105,8 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
       />
 
       <div ref={invoiceRef} className="printable-invoice" style={{ backgroundColor: 'white', color: 'black', padding: '40px', border: '1px solid #333', borderRadius: '4px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', fontSize: '11px', fontFamily: 'serif' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @media print {
             body * { visibility: hidden; }
             .printable-invoice, .printable-invoice * { visibility: visible; }
@@ -115,7 +116,7 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
           .invoice-table th, .invoice-table td { border: 1px solid #333; padding: 6px 8px; }
           .invoice-table { width: 100%; border-collapse: collapse; }
         `}} />
-        
+
         {/* Header */}
         <div style={{ textAlign: 'center', borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '0' }}>
           <h1 style={{ margin: 0, fontSize: '16px', textTransform: 'uppercase', fontWeight: 700 }}>Tax Invoice</h1>
@@ -133,7 +134,7 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
               <div>GSTIN/UIN: <strong>{company?.gstin}</strong></div>
               <div>E-Mail: {company?.email}</div>
             </div>
-            
+
             {/* Consignee */}
             <div style={{ padding: '8px', borderBottom: '1px solid #333', minHeight: '80px' }}>
               <div style={{ fontSize: '9px', textTransform: 'uppercase', color: '#666', marginBottom: '2px' }}>Consignee (Ship to)</div>
@@ -155,70 +156,70 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
 
           {/* Logistics & Reference Details */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Invoice No.</div>
-                  <div style={{ fontWeight: 700 }}>{invoice.invoiceNumber || '(DRAFT)'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Dated</div>
-                  <div style={{ fontWeight: 700 }}>{new Date(invoice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                </div>
-             </div>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Delivery Note</div>
-                  <div>{invoice.deliveryNote || '—'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Mode/Terms of Payment</div>
-                  <div>{invoice.paymentTerms || '—'}</div>
-                </div>
-             </div>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Supplier's Ref.</div>
-                  <div>{invoice.suppliersRef || '—'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Other Reference(s)</div>
-                  <div>{invoice.otherRef || '—'}</div>
-                </div>
-             </div>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Buyer's Order No.</div>
-                  <div>{invoice.buyersOrderNo || '—'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Dated</div>
-                  <div>{invoice.buyersOrderDate ? new Date(invoice.buyersOrderDate).toLocaleDateString('en-IN') : '—'}</div>
-                </div>
-             </div>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Dispatch Document No.</div>
-                  <div>{invoice.dispatchDocNo || '—'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Delivery Note Date</div>
-                  <div>{invoice.deliveryNoteDate ? new Date(invoice.deliveryNoteDate).toLocaleDateString('en-IN') : '—'}</div>
-                </div>
-             </div>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
-                <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Dispatched through</div>
-                  <div>{invoice.dispatchedThrough || '—'}</div>
-                </div>
-                <div style={{ padding: '6px' }}>
-                  <div style={{ fontSize: '9px', color: '#666' }}>Destination</div>
-                  <div>{invoice.destination || '—'}</div>
-                </div>
-             </div>
-             <div style={{ padding: '6px', minHeight: '60px' }}>
-                <div style={{ fontSize: '9px', color: '#666' }}>Terms of Delivery</div>
-                <div style={{ whiteSpace: 'pre-line' }}>{invoice.termsOfDelivery || '—'}</div>
-             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Invoice No.</div>
+                <div style={{ fontWeight: 700 }}>{invoice.invoiceNumber || '(DRAFT)'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Dated</div>
+                <div style={{ fontWeight: 700 }}>{new Date(invoice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Delivery Note</div>
+                <div>{invoice.deliveryNote || '—'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Mode/Terms of Payment</div>
+                <div>{invoice.paymentTerms || '—'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Supplier's Ref.</div>
+                <div>{invoice.suppliersRef || '—'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Other Reference(s)</div>
+                <div>{invoice.otherRef || '—'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Buyer's Order No.</div>
+                <div>{invoice.buyersOrderNo || '—'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Dated</div>
+                <div>{invoice.buyersOrderDate ? new Date(invoice.buyersOrderDate).toLocaleDateString('en-IN') : '—'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Dispatch Document No.</div>
+                <div>{invoice.dispatchDocNo || '—'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Delivery Note Date</div>
+                <div>{invoice.deliveryNoteDate ? new Date(invoice.deliveryNoteDate).toLocaleDateString('en-IN') : '—'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid #333' }}>
+              <div style={{ padding: '6px', borderRight: '1px solid #333' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Dispatched through</div>
+                <div>{invoice.dispatchedThrough || '—'}</div>
+              </div>
+              <div style={{ padding: '6px' }}>
+                <div style={{ fontSize: '9px', color: '#666' }}>Destination</div>
+                <div>{invoice.destination || '—'}</div>
+              </div>
+            </div>
+            <div style={{ padding: '6px', minHeight: '60px' }}>
+              <div style={{ fontSize: '9px', color: '#666' }}>Terms of Delivery</div>
+              <div style={{ whiteSpace: 'pre-line' }}>{invoice.termsOfDelivery || '—'}</div>
+            </div>
           </div>
         </div>
 
@@ -389,8 +390,8 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
             </div>
           </div>
           <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-             <div style={{ fontSize: '10px', textAlign: 'right' }}>for <strong>{company?.name}</strong></div>
-             <div style={{ fontSize: '10px', textAlign: 'right', marginTop: '40px' }}>Authorised Signatory</div>
+            <div style={{ fontSize: '10px', textAlign: 'right' }}>for <strong>{company?.name}</strong></div>
+            <div style={{ fontSize: '10px', textAlign: 'right', marginTop: '40px' }}>Authorised Signatory</div>
           </div>
         </div>
       </div>

@@ -33,6 +33,7 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   filters?: React.ReactNode;
+  disableSearch?: boolean;
 }
 
 export function DataTable<T>({
@@ -49,6 +50,7 @@ export function DataTable<T>({
   onPageChange,
   onPageSizeChange,
   filters,
+  disableSearch = false,
 }: DataTableProps<T>) {
   const isServerSide = totalCount !== undefined;
   const [internalSearchQuery, setInternalSearchQuery] = React.useState('');
@@ -127,7 +129,7 @@ export function DataTable<T>({
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '400px', display: disableSearch ? 'none' : 'block' }}>
           <Search
             size={16}
             style={{

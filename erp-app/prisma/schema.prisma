@@ -242,6 +242,7 @@ model Invoice {
   cgst            Decimal?      @db.Decimal(18, 2)
   sgst            Decimal?      @db.Decimal(18, 2)
   igst            Decimal?      @db.Decimal(18, 2)
+  roundOff        Decimal       @default(0) @map("round_off") @db.Decimal(18, 2)
   
   // Professional Tax Invoice Fields
   consigneeId     String?       @map("consignee_id") @db.Uuid
@@ -544,9 +545,12 @@ model Receipt {
   bankAccountId    String   @map("bank_account_id") @db.Uuid
   amount           Decimal  @db.Decimal(18, 2)
   tdsAmount        Decimal? @map("tds_amount") @db.Decimal(18, 2)
+  roundOff         Decimal  @default(0) @map("round_off") @db.Decimal(18, 2)
   currency         String   @default("INR") @db.Char(3)
   paymentMode      PaymentMode @map("payment_mode")
   referenceNumber  String?  @map("reference_number") // UTR / Cheque No
+  transactionDate  DateTime? @map("transaction_date") @db.Date
+  clearingDate     DateTime? @map("clearing_date") @db.Date
   notes            String?
   status           ReceiptStatus @default(posted)
   invoiceId        String?  @map("invoice_id") @db.Uuid

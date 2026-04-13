@@ -285,7 +285,15 @@ export function InvoicePreview({ id, onBack }: InvoicePreviewProps) {
               <td colSpan={3} style={{ textAlign: 'right', textTransform: 'uppercase', fontSize: '10px' }}>Total</td>
               <td style={{ textAlign: 'center' }}>{invoice.lines.reduce((s: number, l: any) => s + Number(l.qty), 0)}</td>
               <td colSpan={2}></td>
-              <td style={{ textAlign: 'right', fontSize: '13px' }}>₹ {Number(invoice.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+              <td style={{ textAlign: 'right', fontSize: '13px' }}>
+                <div style={{ paddingBottom: '4px' }}>₹ {Number(Number(invoice.totalAmount) - Number(invoice.roundOff || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                {Number(invoice.roundOff || 0) !== 0 && (
+                  <div style={{ fontSize: '10px', color: '#666', borderTop: '1px solid #ddd', paddingTop: '4px' }}>
+                    Round Off: {Number(invoice.roundOff).toLocaleString('en-IN', { signDisplay: 'always', minimumFractionDigits: 2 })}<br/>
+                    <strong style={{ color: 'black', fontSize: '13px' }}>₹ {Number(invoice.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                )}
+              </td>
             </tr>
           </tfoot>
         </table>

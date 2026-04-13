@@ -16,7 +16,7 @@ interface InvoicesViewProps {
 }
 
 export function InvoicesView({ onNavigate }: InvoicesViewProps) {
-  const [activeForm, setActiveForm] = useState<{ mode: 'create' | 'edit', id?: string } | null>(null);
+  const [activeForm, setActiveForm] = useState<{ mode: 'create' | 'edit', id?: string, preloadData?: any } | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   
   const [clientIdFilter, setClientIdFilter] = useState('');
@@ -32,6 +32,14 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
       setClientIdFilter(cf);
       sessionStorage.removeItem('clientFilter');
       setLimit(10);
+    }
+    const dip = sessionStorage.getItem('draftInvoicePreload');
+    if (dip) {
+      sessionStorage.removeItem('draftInvoicePreload');
+      try {
+        const preloadData = JSON.parse(dip);
+        setActiveForm({ mode: 'create', preloadData });
+      } catch (e) {}
     }
   }, []);
 
@@ -66,6 +74,7 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
     return (
       <InvoiceForm 
         editId={activeForm.id} 
+        preloadData={activeForm.preloadData}
         onCancel={() => setActiveForm(null)} 
         onSuccess={() => { setActiveForm(null); revalidate(); }} 
       />
@@ -193,7 +202,7 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
 /* ============================================================
    INVOICE FORM (CREATE/EDIT)
    ============================================================ */
-function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCancel: () => void, onSuccess: () => void }) {
+function InvoiceForm({ editId, preloadData, onCancel, onSuccess }: { editId?: string, preloadData?: any, onCancel: () => void, onSuccess: () => void }) {
   const { data: clientResp } = useApi<any>('/api/clients');
   const clients = clientResp?.data || [];
   const { data: productResp } = useApi<any>('/api/products');
@@ -222,12 +231,19 @@ function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCance
     dispatchedThrough: '',
     destination: '',
     termsOfDelivery: '',
+    roundOff: 0,
   });
 
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
-    if (editId) {
+    if (preloadData) {
+       setFormData(prev => ({ ...prev, ...preloadData.form }));
+       setItems(preloadData.items.map((i: any) => ({
+         id: Math.random().toString(),
+         ...i
+       })));
+    } else if (editId) {
       const loadDraft = async () => {
         try {
           const res = await fetch(`/api/invoices/${editId}`);
@@ -252,6 +268,7 @@ function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCance
               dispatchedThrough: inv.dispatchedThrough || '',
               destination: inv.destination || '',
               termsOfDelivery: inv.termsOfDelivery || '',
+              roundOff: Number(inv.roundOff || 0),
             });
             setItems(inv.lines.map((l: any) => ({
               id: l.id,
@@ -312,7 +329,7 @@ function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCance
       }
     });
 
-    return { subtotal, cgst, sgst, igst, total: subtotal + cgst + sgst + igst, isInterState };
+    return { subtotal, cgst, sgst, igst, total: subtotal + cgst + sgst + igst + Number(formData.roundOff || 0), isInterState };
   };
 
   const totals = calculateTotals();
@@ -330,7 +347,8 @@ function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCance
           unitPrice: Number(line.unitPrice),
           per: line.per,
           gstRate: Number(line.gstRate)
-        }))
+        })),
+        roundOff: Number(formData.roundOff || 0)
       };
 
       const method = editId ? 'PATCH' : 'POST';
@@ -534,6 +552,16 @@ function InvoiceForm({ editId, onCancel, onSuccess }: { editId?: string, onCance
                   <span>IGST</span>
                   <span>{formatINR(totals.igst)}</span>
                 </div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                  <span>Round Off (+/-)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.roundOff}
+                    onChange={(e) => setFormData({ ...formData, roundOff: parseFloat(e.target.value) || 0 })}
+                    style={{ width: '80px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-subtle)', textAlign: 'right', backgroundColor: 'transparent', color: 'inherit' }}
+                  />
+                </div>
                 <hr style={{ border: 'none', borderTop: '1px solid var(--border-subtle)' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-primary)', fontWeight: 700, fontSize: 'var(--text-2xl)' }}>
                   <span>Total Amount</span>

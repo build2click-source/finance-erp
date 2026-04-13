@@ -1,0 +1,45 @@
+prisma.config.ts(7,5): error TS2353: Object literal may only specify known properties, and 'directUrl' does not exist in type '{ url?: string | undefined; shadowDatabaseUrl?: string | undefined; }'.
+src/app/api/auth/me/route.ts(16,16): error TS2322: Type 'string' is not assignable to type 'AppRole | undefined'.
+src/app/api/invoices/[id]/route.ts(40,12): error TS2304: Cannot find name 'NextRequest'.
+src/app/api/invoices/[id]/route.ts(67,14): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(70,12): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(73,12): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(78,12): error TS2304: Cannot find name 'NextRequest'.
+src/app/api/invoices/[id]/route.ts(91,14): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(95,14): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(188,12): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(191,14): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(194,12): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(199,12): error TS2304: Cannot find name 'NextRequest'.
+src/app/api/invoices/[id]/route.ts(204,31): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(208,12): error TS2552: Cannot find name 'NextResponse'. Did you mean 'Response'?
+src/app/api/invoices/[id]/route.ts(211,12): error TS2304: Cannot find name 'NextResponse'.
+src/app/api/products/[id]/route.ts(17,37): error TS2339: Property 'inventoryCostLayer' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+src/app/api/trades/bulk/route.ts(92,55): error TS18046: 'error' is of type 'unknown'.
+src/components/ui/BulkUploadModal.tsx(193,19): error TS2322: Type '{ children: (false | Element)[]; variant: string; style: { display: "flex"; flexDirection: "column"; gap: string; padding: string; }; }' is not assignable to type 'IntrinsicAttributes & CardProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & CardProps'.
+src/components/ui/DataTable.tsx(215,34): error TS2322: Type '{ cols: number; rows: number; }' is not assignable to type 'IntrinsicAttributes & { rows?: number | undefined; }'.
+  Property 'cols' does not exist on type 'IntrinsicAttributes & { rows?: number | undefined; }'.
+src/components/views/ClientsView.tsx(81,5): error TS2304: Cannot find name 'setImporting'.
+src/components/views/ClientsView.tsx(108,7): error TS2304: Cannot find name 'setImporting'.
+src/components/views/FinancialReportsView.tsx(89,5): error TS2304: Cannot find name 'downloadCSV'.
+src/components/views/FinancialReportsView.tsx(180,5): error TS2304: Cannot find name 'downloadCSV'.
+src/components/views/FinancialReportsView.tsx(277,5): error TS2304: Cannot find name 'downloadCSV'.
+src/components/views/InvoicePreview.tsx(16,37): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+src/components/views/InvoicePreview.tsx(17,22): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+src/components/views/InvoicePreview.tsx(32,28): error TS2551: Property 'getImageProperties' does not exist on type 'jsPDF'. Did you mean 'setProperties'?
+src/components/views/InvoicePreview.tsx(100,23): error TS2322: Type '"danger"' is not assignable to type 'ButtonVariant | undefined'.
+src/components/views/ProductsView.tsx(85,25): error TS2322: Type '{ initialData: any; onCancel: () => void; onSuccess: () => void; }' is not assignable to type 'IntrinsicAttributes & { onCancel: () => void; onSuccess: () => void; }'.
+  Property 'initialData' does not exist on type 'IntrinsicAttributes & { onCancel: () => void; onSuccess: () => void; }'.
+src/components/views/TransactionsView.tsx(67,7): error TS2304: Cannot find name 'isCreating'.
+src/components/views/TransactionsView.tsx(68,45): error TS2304: Cannot find name 'setIsCreating'.
+src/components/views/TransactionsView.tsx(68,86): error TS2304: Cannot find name 'setIsCreating'.
+src/components/views/TransactionsView.tsx(79,18): error TS2304: Cannot find name 'filteredLines'.
+src/components/views/TransactionsView.tsx(105,36): error TS2304: Cannot find name 'setIsCreating'.
+src/lib/auth.ts(32,23): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BufferSource'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+src/lib/banking/receipt-engine.ts(291,15): error TS2322: Type '"voided"' is not assignable to type 'ReceiptStatus | EnumReceiptStatusFieldUpdateOperationsInput | undefined'.
+src/lib/invoicing/invoice-engine.ts(318,15): error TS2322: Type '"voided"' is not assignable to type 'InvoiceStatus | EnumInvoiceStatusFieldUpdateOperationsInput | undefined'.

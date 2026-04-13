@@ -87,7 +87,7 @@ function AppShellContent() {
               {activeView === 'bank' && <BankView onNavigate={handleNavigate} />}
               {activeView === 'products' && <ProductsView onNavigate={handleNavigate} />}
               {activeView === 'tenure' && <TenuresView onNavigate={handleNavigate} />}
-              {activeView === 'trade-summary' && <TradeSummaryView />}
+              {activeView === 'trade-summary' && <TradeSummaryView onNavigate={handleNavigate} />}
               {activeView === 'financial-reports' && <FinancialReportsView onNavigate={handleNavigate} />}
               {activeView === 'outstanding' && <OutstandingView onNavigate={handleNavigate} />}
               {activeView === 'tax-reports' && <TaxReportsView onNavigate={handleNavigate} />}

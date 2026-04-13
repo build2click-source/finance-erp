@@ -8,7 +8,7 @@ import { formatINR } from '@/lib/utils/format';
 import { useApi } from '@/lib/hooks/useApi';
 import { InvoicePreview } from './InvoicePreview';
 
-export function TradeSummaryView() {
+export function TradeSummaryView({ onNavigate }: { onNavigate?: (view: string) => void }) {
   const { data: clientsData } = useApi<any>('/api/clients');
   const clients = useMemo(() => clientsData?.data || [], [clientsData]);
 
@@ -117,12 +117,13 @@ export function TradeSummaryView() {
 
   // Aggregate dynamically based on SELECTED trades if there is a selection, otherwise calculate overall effective
   const totals = useMemo(() => {
+    if (!selectedClientId) return { qty: 0, commission: 0 };
     const source = selectedTradeIds.size > 0 ? selectedEffectiveTrades : effectiveTrades;
     return source.reduce((acc: any, t: any) => ({
       qty: acc.qty + Number(t.quantity),
       commission: acc.commission + Number(t.commissionAmt)
     }), { qty: 0, commission: 0 });
-  }, [effectiveTrades, selectedEffectiveTrades, selectedTradeIds]);
+  }, [effectiveTrades, selectedEffectiveTrades, selectedTradeIds, selectedClientId]);
 
   const toggleAll = () => {
     if (selectedTradeIds.size === trades.length && trades.length > 0) {
@@ -178,6 +179,39 @@ export function TradeSummaryView() {
     setEditingId(null);
   };
 
+  const handleDraftInvoice = () => {
+    if (!selectedClientId || selectedEffectiveTrades.length === 0) {
+      alert("Please select at least one trade to generate a draft invoice.");
+      return;
+    }
+    
+    const preloadedItems = selectedEffectiveTrades.map((t: any) => {
+      const partnerName = t.buyerId === selectedClientId ? t.seller?.name : t.buyer?.name;
+      const desc = `${t.product?.name || 'Product'} ${partnerName ? `- ${partnerName}` : ''}`;
+      
+      return {
+        productId: t.product?.id || '',
+        description: desc,
+        qty: Number(t.quantity) || 0,
+        unitPrice: Number(t.commissionRate) || 0,
+        gstRate: t.product?.gstRate ? Number(t.product.gstRate) : 0,
+        hsnCode: t.product?.hsnCode || '',
+        per: 'MT'
+      };
+    });
+
+    const preloadData = {
+      form: {
+        clientId: selectedClientId,
+        type: 'TaxInvoice',
+      },
+      items: preloadedItems
+    };
+
+    sessionStorage.setItem('draftInvoicePreload', JSON.stringify(preloadData));
+    if (onNavigate) onNavigate('invoices');
+  };
+
   if (showDraftBill) {
     return (
       <DraftBillPreview 
@@ -198,7 +232,14 @@ export function TradeSummaryView() {
   const columns = [
     {
       key: 'selection',
-      header: '',
+      header: (
+        <input 
+          type="checkbox" 
+          checked={selectedTradeIds.size === effectiveTrades.length && effectiveTrades.length > 0}
+          onChange={toggleAll}
+          title="Select all on screen"
+        />
+      ),
       render: (row: any) => (
         <input 
           type="checkbox" 
@@ -284,9 +325,14 @@ export function TradeSummaryView() {
         actions={
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             {selectedTradeIds.size > 0 && (
-              <Button onClick={() => setShowDraftBill(true)}>
-                Generate Draft Bill ({selectedTradeIds.size})
-              </Button>
+              <>
+                <Button variant="secondary" onClick={() => setShowDraftBill(true)}>
+                  Draft Bill ({selectedTradeIds.size})
+                </Button>
+                <Button onClick={handleDraftInvoice}>
+                  Draft Invoice ({selectedTradeIds.size})
+                </Button>
+              </>
             )}
           </div>
         }
@@ -413,13 +459,6 @@ export function TradeSummaryView() {
               </button>
             )
           }}
-          filters={
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-              <Button size="sm" variant="secondary" onClick={toggleAll}>
-                {selectedTradeIds.size === trades.length && trades.length > 0 ? 'Deselect All' : 'Select All Trades'}
-              </Button>
-            </div>
-          }
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, FileUp } from 'lucide-react';
+import { Plus, FileUp, Trash2 } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select, ConfirmModal, BulkUploadModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { formatINR } from '@/lib/utils/format';
@@ -144,17 +144,19 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
             {r.status === 'posted' && (
               <button
                 onClick={() => setVoidingReceipt(r)}
-                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                title="Void"
+                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
               >
-                Void
+                <Trash2 size={16} />
               </button>
             )}
             {r.status === 'draft' && (
               <button
                 onClick={() => setVoidingReceipt(r)}
-                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                title="Delete"
+                style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
               >
-                Delete
+                <Trash2 size={16} />
               </button>
             )}
           </div>
@@ -248,6 +250,8 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
     netAmount: '',
     amount: '', // Represents Final Received Amount / New Net
     transactionDate: new Date().toISOString().split('T')[0],
+    clearingDate: '',
+    roundOff: 0,
     reference: '',
     paymentMethod: 'NEFT',
     tdsDeducted: '0',
@@ -282,6 +286,8 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
     ? invoices.filter((inv: any) => inv.clientId === formData.clientId && inv.status === 'posted')
     : [];
 
+  const selectedInvoice = invoices.find((inv: any) => inv.id === formData.invoiceId);
+
   const handleSave = async (statusOverride?: string) => {
     setSaving(true);
     try {
@@ -296,6 +302,8 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
         tdsAmount: Number(formData.tdsDeducted) || 0,
         status: statusOverride || formData.status,
         invoiceId: formData.invoiceId,
+        clearingDate: formData.clearingDate,
+        roundOff: Number(formData.roundOff) || 0,
       });
       onSuccess();
     } catch (e) {
@@ -376,6 +384,12 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                   ...filteredInvoices.map((inv: any) => ({ value: inv.id, label: `INV-${inv.invoiceNumber} (₹${inv.totalAmount})` }))
                 ]}
               />
+              {selectedInvoice && (
+                <div style={{ padding: '8px 12px', backgroundColor: 'var(--surface-container-highest)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Invoice Date</span>
+                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{new Date(selectedInvoice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                </div>
+              )}
               <Select
                 label="Payment Method"
                 value={formData.paymentMethod}
@@ -429,19 +443,24 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                      Received Amount / New Net
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-primary)', fontWeight: 'bold' }}>₹</span>
-                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px', fontWeight: 'bold', color: 'var(--text-primary)' }} value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              <Input label="Transaction Date" type="date" value={formData.transactionDate} onChange={e => setFormData({ ...formData, transactionDate: e.target.value })} />
+              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px' }}>Received Amount / Final AR Settled</label>
+                  <Input type="number" placeholder="0.00" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px' }}>Round Off (+/-) (Absorbed by Bank)</label>
+                  <Input type="number" step="0.01" value={formData.roundOff} onChange={e => setFormData({ ...formData, roundOff: parseFloat(e.target.value) || 0 })} />
+                </div>
+              </div>
+
+              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)' }}>
+                <Input label="Receipt / Record Date" type="date" value={formData.transactionDate} onChange={e => setFormData({ ...formData, transactionDate: e.target.value })} style={{ flex: 1 }} />
+                <Input label="Transaction / Clearing Date" type="date" value={formData.clearingDate} onChange={e => setFormData({ ...formData, clearingDate: e.target.value })} style={{ flex: 1 }} />
+              </div>
 
               <div style={{ gridColumn: 'span 2' }}>
                 <Select

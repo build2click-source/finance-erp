@@ -195,32 +195,12 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [tradeType, setTradeType] = useState('sell');
 
-  // Searchable Seller Field
-  const [sellerQuery, setSellerQuery] = useState('');
-  const [sellerId, setSellerId] = useState('');
-  const [isSellerBoxOpen, setIsSellerBoxOpen] = useState(false);
-
-  const filteredSellers = useMemo(() => {
-    if (!sellerQuery) return clients;
-    return clients.filter((c: any) => c.name.toLowerCase().includes(sellerQuery.toLowerCase()));
-  }, [clients, sellerQuery]);
-
-  // Searchable Buyer Field
-  const [buyerQuery, setBuyerQuery] = useState('');
-  const [buyerId, setBuyerId] = useState('');
-  const [isBuyerBoxOpen, setIsBuyerBoxOpen] = useState(false);
-
-  const filteredBuyers = useMemo(() => {
-    if (!buyerQuery) return clients;
-    return clients.filter((c: any) => c.name.toLowerCase().includes(buyerQuery.toLowerCase()));
-  }, [clients, buyerQuery]);
-
   const [items, setItems] = useState<any[]>([
-    { id: '1', productId: '', quantity: '', price: '', remarks: '', commissionRate: '' }
+    { id: '1', sellerId: '', buyerId: '', productId: '', quantity: '', price: '', remarks: '', commissionRate: '' }
   ]);
 
   const addItem = () => {
-    setItems([...items, { id: Math.random().toString(), productId: '', quantity: '', price: '', remarks: '', commissionRate: '' }]);
+    setItems([...items, { id: Math.random().toString(), sellerId: '', buyerId: '', productId: '', quantity: '', price: '', remarks: '', commissionRate: '' }]);
   };
 
   const removeItem = (id: string) => {
@@ -231,15 +211,16 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
     setItems(items.map(i => i.id === id ? { ...i, [field]: val } : i));
   };
 
-  const isValid = items.length > 0 && items.every(i => i.productId && Number(i.quantity) > 0 && Number(i.price) > 0) && sellerId && buyerId && date;
+  const isValid = items.length > 0 && items.every(i => i.sellerId && i.buyerId && i.productId && Number(i.quantity) > 0 && Number(i.price) > 0 && i.sellerId !== i.buyerId) && date;
 
   const handleSave = async () => {
-    if (sellerId === buyerId) {
-      alert("Buyer and seller cannot be the same client.");
+    const hasSameBuyerSeller = items.some(i => i.sellerId === i.buyerId && i.sellerId !== '');
+    if (hasSameBuyerSeller) {
+      alert("Buyer and seller cannot be the same client on any row.");
       return;
     }
     if (!isValid) {
-      alert("Please ensure all rows have products, quantities, and prices.");
+      alert("Please ensure all rows have distinct buyer/seller, products, quantities, and prices.");
       return;
     }
 
@@ -255,8 +236,8 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
         const originalFormulaAmt = qtyNum * rateNum;
         return {
           date,
-          sellerId,
-          buyerId,
+          sellerId: item.sellerId,
+          buyerId: item.buyerId,
           tradeType,
           productId: item.productId,
           quantity: qtyNum,
@@ -302,7 +283,7 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
             <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <Select
-              label="Buy / Sell"
+              label="Default Trade Interpretation"
               value={tradeType}
               onChange={(e) => setTradeType(e.target.value)}
               options={[
@@ -310,83 +291,6 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
                 { value: 'buy', label: 'Buy' },
               ]}
             />
-            <div style={{ position: 'relative' }}>
-              <Input 
-                label="From Client (Seller - Search)" 
-                placeholder="Start typing to search sellers..." 
-                value={sellerQuery}
-                onChange={(e) => {
-                  setSellerQuery(e.target.value);
-                  setSellerId(''); 
-                  setIsSellerBoxOpen(true);
-                }}
-                onFocus={() => setIsSellerBoxOpen(true)}
-              />
-              {isSellerBoxOpen && filteredSellers.length > 0 && (
-                <div style={{ 
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, 
-                  backgroundColor: 'var(--surface-container)', border: '1px solid var(--border-subtle)', 
-                  borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', marginTop: '4px',
-                  boxShadow: 'var(--shadow-md)'
-                }}>
-                  {filteredSellers.map((c: any) => (
-                    <div 
-                      key={c.id} 
-                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}
-                      onClick={() => {
-                        setSellerId(c.id);
-                        setSellerQuery(c.name);
-                        setIsSellerBoxOpen(false);
-                      }}
-                    >
-                      {c.name}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isSellerBoxOpen && (
-                <div style={{position: 'fixed', inset: 0, zIndex: 9}} onClick={() => setIsSellerBoxOpen(false)} />
-              )}
-            </div>
-            
-            <div style={{ position: 'relative' }}>
-              <Input 
-                label="To Client (Buyer - Search)" 
-                placeholder="Start typing to search buyers..." 
-                value={buyerQuery}
-                onChange={(e) => {
-                  setBuyerQuery(e.target.value);
-                  setBuyerId(''); 
-                  setIsBuyerBoxOpen(true);
-                }}
-                onFocus={() => setIsBuyerBoxOpen(true)}
-              />
-              {isBuyerBoxOpen && filteredBuyers.length > 0 && (
-                <div style={{ 
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, 
-                  backgroundColor: 'var(--surface-container)', border: '1px solid var(--border-subtle)', 
-                  borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', marginTop: '4px',
-                  boxShadow: 'var(--shadow-md)'
-                }}>
-                  {filteredBuyers.map((c: any) => (
-                    <div 
-                      key={c.id} 
-                      style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}
-                      onClick={() => {
-                        setBuyerId(c.id);
-                        setBuyerQuery(c.name);
-                        setIsBuyerBoxOpen(false);
-                      }}
-                    >
-                      {c.name}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isBuyerBoxOpen && (
-                <div style={{position: 'fixed', inset: 0, zIndex: 9}} onClick={() => setIsBuyerBoxOpen(false)} />
-              )}
-            </div>
           </div>
         </div>
       </Card>
@@ -401,6 +305,8 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)', minWidth: '700px' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--surface-container-low)', textAlign: 'left', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <th style={{ padding: '12px', fontWeight: 600 }}>Seller</th>
+                  <th style={{ padding: '12px', fontWeight: 600 }}>Buyer</th>
                   <th style={{ padding: '12px', fontWeight: 600 }}>Product</th>
                   <th style={{ padding: '12px', fontWeight: 600 }}>Remarks</th>
                   <th style={{ padding: '12px', fontWeight: 600, width: '100px' }}>Qty/MT</th>
@@ -419,9 +325,28 @@ function TradeForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess: (
                     <tr key={item.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '8px' }}>
                         <Select 
+                          value={item.sellerId}
+                          onChange={(e) => updateItem(item.id, 'sellerId', e.target.value)}
+                          options={[{ value: '', label: 'Select Seller...' }, ...clients.map((c: any) => ({ value: c.id, label: c.name }))]}
+                          style={{ minWidth: '150px', borderColor: (item.sellerId && item.buyerId === item.sellerId) ? 'var(--error)' : undefined }}
+                        />
+                      </td>
+                      <td style={{ padding: '8px' }}>
+                        <Select 
+                          value={item.buyerId}
+                          onChange={(e) => updateItem(item.id, 'buyerId', e.target.value)}
+                          options={[{ value: '', label: 'Select Buyer...' }, ...clients.map((c: any) => ({ value: c.id, label: c.name }))]}
+                          style={{ minWidth: '150px', borderColor: (item.sellerId && item.buyerId === item.sellerId) ? 'var(--error)' : undefined }}
+                        />
+                        {item.sellerId && item.buyerId === item.sellerId && (
+                          <div style={{ color: 'var(--error)', fontSize: 'var(--text-xs)', marginTop: '4px' }}>Cannot be same as seller</div>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px' }}>
+                        <Select 
                           value={item.productId}
                           onChange={(e) => updateItem(item.id, 'productId', e.target.value)}
-                          options={[{ value: '', label: 'Select...' }, ...allProducts.map((p: any) => ({ value: p.id, label: p.name }))]}
+                          options={[{ value: '', label: 'Select Product...' }, ...allProducts.map((p: any) => ({ value: p.id, label: p.name }))]}
                           style={{ minWidth: '150px' }}
                         />
                       </td>

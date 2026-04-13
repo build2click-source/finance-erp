@@ -48,6 +48,7 @@ export interface CreateInvoiceInput {
   costingMethod?: 'FIFO' | 'LIFO';
   notes?: string;
   createdBy?: string;
+  roundOff?: number;
 
   // New metadata fields
   consigneeId?: string;
@@ -163,7 +164,8 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
   const totalSgst = computedLines.reduce((s, l) => s + l.gst.sgst, 0);
   const totalIgst = computedLines.reduce((s, l) => s + l.gst.igst, 0);
   const totalTax = totalCgst + totalSgst + totalIgst;
-  const totalAmount = totalNet + totalTax;
+  const roundOff = input.roundOff || 0;
+  const totalAmount = totalNet + totalTax + roundOff;
 
   const invoiceId = uuidv4();
   const invoiceNumber = await generateInvoiceNumber(input.type, input.date);
@@ -171,17 +173,17 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
   // Build journal lines
   const journalLines: JournalLine[] = [];
 
-  // 1. Debit Accounts Receivable (total including tax)
+  // 1. Debit Accounts Receivable (total including tax and round off)
   journalLines.push({
     accountId: input.arAccountId,
     amount: totalAmount,
     entryType: 'Dr',
   });
 
-  // 2. Credit Revenue
+  // 2. Credit Revenue (absorbing the round off)
   journalLines.push({
     accountId: input.revenueAccountId,
-    amount: -totalNet,
+    amount: -(totalNet + roundOff),
     entryType: 'Cr',
   });
 
@@ -241,6 +243,7 @@ export async function postInvoice(input: CreateInvoiceInput): Promise<PostedInvo
       clientId: input.clientId,
       totalAmount: new Prisma.Decimal(totalAmount),
       totalTax: new Prisma.Decimal(totalTax),
+      roundOff: new Prisma.Decimal(roundOff),
       status: 'posted',
       // Metadata
       consigneeId: input.consigneeId,

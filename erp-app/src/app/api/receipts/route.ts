@@ -13,6 +13,9 @@ const SettlementSchema = z.object({
   paymentMode: z.enum(['UPI', 'NEFT', 'RTGS', 'IMPS', 'Cheque', 'Cash']),
   referenceNumber: z.string().optional(),
   notes: z.string().optional(),
+  transactionDate: z.string().optional(),
+  clearingDate: z.string().optional(),
+  roundOff: z.number().optional(),
   tdsAmount: z.number().optional(),
   invoiceId: z.string().uuid().optional().or(z.literal('')), // Optional or empty string
   status: z.enum(['draft', 'posted']).optional(),

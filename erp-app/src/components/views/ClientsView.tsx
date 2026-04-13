@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, FileUp, Edit, EyeOff } from 'lucide-react';
+import { Plus, FileUp, Edit, EyeOff, Eye } from 'lucide-react';
 import { PageHeader, Button, Card, Badge, Input, Select, Textarea, ConfirmModal, BulkUploadModal, ViewSkeleton } from '@/components/ui';
 import { DataTable } from '@/components/ui/DataTable';
 import { ViewId } from '@/components/layout/Sidebar';
@@ -15,7 +15,6 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
   const [viewingClient, setViewingClient] = useState<any>(null);
-  const [deletingClient, setDeletingClient] = useState<any>(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState('all');
   const [importing, setImporting] = useState(false);
@@ -112,17 +111,19 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
     reader.readAsText(file);
   };
 
-  const handleDeleteClient = async () => {
-    if (!deletingClient) return;
+  const toggleClientStatus = async (client: any) => {
+    const newStatus = client.status === 'inactive' ? 'active' : 'inactive';
     try {
-      const res = await fetch(`/api/clients/${deletingClient.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete failed');
+      const res = await fetch(`/api/clients/${client.id}`, { 
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error('Toggle failed');
       revalidate();
     } catch (e) {
       console.error(e);
-      alert('Failed to delete client');
-    } finally {
-      setDeletingClient(null);
+      alert('Failed to toggle client visibility');
     }
   };
 
@@ -149,11 +150,11 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
             key: 'name',
             header: 'Client Name',
             render: (c) => (
-              <div>
+              <div style={{ opacity: c.status === 'inactive' ? 0.5 : 1 }}>
                 <p 
                   onClick={() => setViewingClient(c)}
                   style={{ fontWeight: 500, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', textDecoration: 'underline' }}>
-                  {c.name}
+                  {c.name} {c.status === 'inactive' && '(Archived)'}
                 </p>
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: '2px' }}>
                   {c.code}
@@ -161,8 +162,8 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
               </div>
             ),
           },
-          { key: 'type', header: 'Type', render: (c) => <span style={{ color: 'var(--text-secondary)' }}>{c.type}</span> },
-          { key: 'gstin', header: 'GSTIN', render: (c) => <span className="font-technical" style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)' }}>{c.gstin || '—'}</span> },
+          { key: 'type', header: 'Type', render: (c) => <span style={{ color: 'var(--text-secondary)', opacity: c.status === 'inactive' ? 0.5 : 1 }}>{c.type}</span> },
+          { key: 'gstin', header: 'GSTIN', render: (c) => <span className="font-technical" style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', opacity: c.status === 'inactive' ? 0.5 : 1 }}>{c.gstin || '—'}</span> },
         ]}
         data={filteredClients}
         loading={loading}
@@ -208,25 +209,17 @@ export function ClientsView({ onNavigate }: ClientsViewProps) {
               Trades
             </button>
             <button
-              onClick={() => setDeletingClient(c)}
-              title="Archive"
-              style={{ color: 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
+              onClick={() => toggleClientStatus(c)}
+              title={c.status === 'inactive' ? "Unhide Client" : "Archive Client"}
+              style={{ color: c.status === 'inactive' ? 'var(--text-secondary)' : 'var(--color-danger)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}
             >
-              <EyeOff size={16} />
+              {c.status === 'inactive' ? <Eye size={16} /> : <EyeOff size={16} />}
             </button>
           </div>
         )}
       />
 
-      <ConfirmModal
-        open={!!deletingClient}
-        title="Archive Client?"
-        message={`Are you sure you want to archive "${deletingClient?.name}"? If they have transactions, they will be deactivated instead of deleted.`}
-        confirmLabel="Archive"
-        variant="danger"
-        onConfirm={handleDeleteClient}
-        onCancel={() => setDeletingClient(null)}
-      />
+
 
       <BulkUploadModal
         open={showBulkModal}

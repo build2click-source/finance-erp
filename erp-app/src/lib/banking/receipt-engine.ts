@@ -22,6 +22,9 @@ export interface CreateReceiptInput {
   paymentMode: 'UPI' | 'NEFT' | 'RTGS' | 'IMPS' | 'Cheque' | 'Cash';
   referenceNumber?: string;
   notes?: string;
+  transactionDate?: string;
+  clearingDate?: string;
+  roundOff?: number;
   // Account config for journal posting
   arAccountId: string; // The Accounts Receivable account to credit
   tdsAmount?: number;
@@ -103,16 +106,17 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
   let transactionId = '';
 
   if (!isDraft) {
+    const grossAmount = input.amount + (input.roundOff || 0);
     // Journal setup: Dr Bank / Cr Accounts Receivable
     const journalLines: JournalLine[] = [
       {
         accountId: bank.accountId,
-        amount: input.amount, // Positive = Dr
+        amount: grossAmount, // Positive = Dr
         entryType: 'Dr',
       },
       {
         accountId: input.arAccountId,
-        amount: -input.amount, // Negative = Cr
+        amount: -grossAmount, // Negative = Cr
         entryType: 'Cr',
       }
     ];
@@ -137,8 +141,11 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
       bankAccountId: input.bankAccountId,
       amount: new Prisma.Decimal(input.amount),
       tdsAmount: input.tdsAmount ? new Prisma.Decimal(input.tdsAmount) : null,
+      roundOff: new Prisma.Decimal(input.roundOff || 0),
       paymentMode: input.paymentMode,
       referenceNumber: input.referenceNumber,
+      transactionDate: input.transactionDate ? new Date(input.transactionDate) : null,
+      clearingDate: input.clearingDate ? new Date(input.clearingDate) : null,
       notes: input.notes,
       status: isDraft ? 'draft' : 'posted',
       invoiceId: input.invoiceId,

@@ -34,6 +34,7 @@ const PostInvoiceSchema = z.object({
   costingMethod: z.enum(['FIFO', 'LIFO']).default('FIFO'),
   notes: z.string().optional(),
   createdBy: z.string().uuid().optional(),
+  roundOff: z.number().optional(),
 });
 
 // POST — Post an invoice atomically

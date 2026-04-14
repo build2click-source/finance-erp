@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useCallback } from 'react';
 import { Download, ChevronRight, ChevronDown, ArrowLeft } from 'lucide-react';
@@ -58,7 +58,27 @@ function ClientLedger({ client, onBack }: { client: any; onBack: () => void }) {
               </tr>
             </thead>
             <tbody>
-              {entries.map((tx: any, i: number) => (
+              {entries.map((tx: any, i: number) => {
+                let debit = 0;
+                let credit = 0;
+                
+                const clientEntries = tx.journalEntries?.filter((je: any) => 
+                  je.account?.type === 'AccountsReceivable' || je.account?.type === 'AccountsPayable'
+                ) || [];
+
+                clientEntries.forEach((je: any) => {
+                  const amt = Number(je.amount);
+                  if (amt > 0) debit += amt;
+                  else if (amt < 0) credit += Math.abs(amt);
+                });
+
+                if (debit === 0 && credit === 0 && tx.journalEntries) {
+                  const totalAmt = tx.journalEntries.reduce((sum: number, je: any) => Number(je.amount) > 0 ? sum + Number(je.amount) : sum, 0);
+                  if (tx.invoiceId) debit = totalAmt;
+                  else credit = totalAmt;
+                }
+
+                return (
                 <tr key={i}>
                   <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
                     {new Date(tx.createdAt || tx.date).toLocaleDateString('en-IN')}
@@ -71,12 +91,12 @@ function ClientLedger({ client, onBack }: { client: any; onBack: () => void }) {
                   </td>
                   <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right' }}>
                     <span className="currency" style={{ color: 'var(--text-primary)' }}>
-                      {tx.debit ? formatINR(tx.debit) : '—'}
+                      {debit > 0 ? formatINR(debit) : '—'}
                     </span>
                   </td>
                   <td style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'right' }}>
                     <span className="currency" style={{ color: 'var(--text-tertiary)' }}>
-                      {tx.credit ? formatINR(tx.credit) : '—'}
+                      {credit > 0 ? formatINR(credit) : '—'}
                     </span>
                   </td>
                   <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
@@ -85,7 +105,8 @@ function ClientLedger({ client, onBack }: { client: any; onBack: () => void }) {
                     </Badge>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </Card>

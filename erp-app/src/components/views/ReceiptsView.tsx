@@ -246,47 +246,70 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
   const [formData, setFormData] = useState({
     bankAccountId: '',
     clientId: '',
-    taxableAmount: '',
-    netAmount: '',
-    amount: '', // Represents Final Received Amount / New Net
+    amount: '', // Represents Final Received Amount
     transactionDate: new Date().toISOString().split('T')[0],
     clearingDate: '',
     roundOff: 0,
     reference: '',
     paymentMethod: 'NEFT',
-    tdsDeducted: '0',
     status: 'posted',
     invoiceId: '',
   });
 
-  const handleCalc16 = () => {
-    const taxable = parseFloat(formData.taxableAmount) || 0;
-    const net = parseFloat(formData.netAmount) || 0;
-    
-    if (taxable <= 0) {
-      alert("Please enter a valid Taxable Amount.");
-      return;
-    }
-    if (net <= 0) {
-      alert("Please enter a valid Net Amount (with GST).");
-      return;
-    }
-
-    const newNet = taxable * 1.16;
-    const tds = net - newNet;
-    
-    setFormData(prev => ({
-      ...prev,
-      amount: newNet.toFixed(2),
-      tdsDeducted: tds > 0 ? tds.toFixed(2) : '0'
-    }));
-  };
-
   const filteredInvoices = formData.clientId
-    ? invoices.filter((inv: any) => inv.clientId === formData.clientId && inv.status === 'posted')
+    ? invoices.filter((inv: any) => {
+        if (inv.clientId !== formData.clientId || inv.status !== 'posted') return false;
+        
+        let settledCash = 0;
+        if (inv.receipts && Array.isArray(inv.receipts)) {
+            settledCash = inv.receipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+        }
+        
+        const taxable = Number(inv.totalAmount) - Number(inv.totalTax || 0);
+        const expected = taxable * 1.16;
+        
+        // Only show invoices that still have a remaining balance > zero (with tiny margin for roundoff)
+        return (expected - settledCash) > 0.05;
+      })
     : [];
 
   const selectedInvoice = invoices.find((inv: any) => inv.id === formData.invoiceId);
+
+  let taxableAmount = 0;
+  let netAmount = 0;
+  let expectedReceived = 0;
+  let totalTDS = 0;
+  let settledCash = 0;
+  
+  if (selectedInvoice) {
+      taxableAmount = Number(selectedInvoice.totalAmount) - Number(selectedInvoice.totalTax || 0);
+      netAmount = Number(selectedInvoice.totalAmount);
+      expectedReceived = taxableAmount * 1.16;
+      totalTDS = netAmount - expectedReceived;
+      if (totalTDS < 0) totalTDS = 0;
+
+      if (selectedInvoice.receipts && Array.isArray(selectedInvoice.receipts)) {
+          settledCash = selectedInvoice.receipts.reduce((sum: number, r: any) => sum + Number(r.amount || 0), 0);
+      }
+  }
+
+  let remainingExpectedCash = expectedReceived - settledCash;
+  if (remainingExpectedCash < 0) remainingExpectedCash = 0;
+
+  let calculatedTDS = 0;
+  const numAmount = parseFloat(formData.amount) || 0;
+  if (expectedReceived > 0 && numAmount > 0) {
+      const ratio = numAmount / expectedReceived;
+      calculatedTDS = totalTDS * ratio;
+  }
+
+  const handleSettleFull = () => {
+      if (remainingExpectedCash > 0) {
+          setFormData(prev => ({ ...prev, amount: remainingExpectedCash.toFixed(2), roundOff: 0 }));
+      } else if (expectedReceived > 0) {
+          setFormData(prev => ({ ...prev, amount: expectedReceived.toFixed(2), roundOff: 0 }));
+      }
+  };
 
   const handleSave = async (statusOverride?: string) => {
     setSaving(true);
@@ -299,7 +322,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
         date: formData.transactionDate,
         referenceNumber: formData.reference,
         paymentMode: formData.paymentMethod,
-        tdsAmount: Number(formData.tdsDeducted) || 0,
+        tdsAmount: Number(calculatedTDS.toFixed(2)),
         status: statusOverride || formData.status,
         invoiceId: formData.invoiceId,
         clearingDate: formData.clearingDate,
@@ -360,36 +383,51 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               Transaction Details
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
-              <Select
-                label="Bill / Invoice (Optional)"
-                value={formData.invoiceId}
-                onChange={e => {
-                  const val = e.target.value;
-                  const inv = invoices.find((i: any) => i.id === val);
-                  if (inv) {
-                    const taxable = Number(inv.totalAmount) - Number(inv.totalTax || 0);
-                    setFormData({ 
-                      ...formData, 
-                      invoiceId: val, 
-                      netAmount: String(inv.totalAmount),
-                      taxableAmount: String(taxable)
-                    });
-                  } else {
-                    setFormData({ ...formData, invoiceId: val });
-                  }
-                }}
-                disabled={!formData.clientId}
-                options={[
-                  { value: '', label: 'Select Invoice to settle' },
-                  ...filteredInvoices.map((inv: any) => ({ value: inv.id, label: `INV-${inv.invoiceNumber} (₹${inv.totalAmount})` }))
-                ]}
-              />
-              {selectedInvoice && (
-                <div style={{ padding: '8px 12px', backgroundColor: 'var(--surface-container-highest)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>Invoice Date</span>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}>{new Date(selectedInvoice.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              <div style={{ gridColumn: 'span 2' }}>
+                <Select
+                  label="Bill / Invoice (Optional)"
+                  value={formData.invoiceId}
+                  onChange={e => setFormData({ ...formData, invoiceId: e.target.value })}
+                  disabled={!formData.clientId}
+                  options={[
+                    { value: '', label: 'Select Invoice to settle' },
+                    ...filteredInvoices.map((inv: any) => ({ value: inv.id, label: `INV-${inv.invoiceNumber} (₹${inv.totalAmount})` }))
+                  ]}
+                />
+              </div>
+              {selectedInvoice ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', gridColumn: 'span 2' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)' }}>
+                    <div style={{ padding: '10px', backgroundColor: 'var(--surface-container-low)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Taxable</div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-data)' }}>₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                    <div style={{ padding: '10px', backgroundColor: 'var(--surface-container-low)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>Net (w/ GST)</div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-data)' }}>₹{netAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
+                    <div style={{ padding: '10px', backgroundColor: 'var(--surface-container-low)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--primary)', textTransform: 'uppercase', fontWeight: 700 }}>Expected (16%)</div>
+                      <div style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{expectedReceived.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                    <div style={{ padding: '10px', backgroundColor: 'var(--surface-container-low)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--primary)', textTransform: 'uppercase', fontWeight: 700 }}>Total TDS</div>
+                      <div style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{totalTDS.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                    <div style={{ padding: '10px', backgroundColor: 'var(--primary-container)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-md)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--primary)', textTransform: 'uppercase', fontWeight: 700 }}>Remaining Due</div>
+                      <div style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{remainingExpectedCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)', backgroundColor: 'var(--surface-container-lowest)', borderRadius: 'var(--radius-md)' }}>
+                  Select an invoice to auto-calculate TDS amounts.
                 </div>
               )}
+
               <Select
                 label="Payment Method"
                 value={formData.paymentMethod}
@@ -401,63 +439,48 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                   { value: 'Cheque', label: 'Cheque' },
                 ]}
               />
-              <div style={{ gridColumn: 'span 2' }}>
-                <Input label="Transaction Reference Number (UTR)" placeholder="e.g. UTR123456789" value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} />
-              </div>
+              <Input label="Transaction Reference Number (UTR)" placeholder="e.g. UTR123456789" value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} />
 
-              <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      Taxable Amount (Without GST)
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
-                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.taxableAmount} onChange={e => setFormData({ ...formData, taxableAmount: e.target.value })} />
-                    </div>
+              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)', alignItems: 'center', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)' }}>
+                <div style={{ flex: 2, position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-24px', position: 'relative', zIndex: 1, pointerEvents: 'none', paddingRight: '12px' }}>
+                    {selectedInvoice && numAmount > 0 && Math.abs(numAmount - remainingExpectedCash) < 0.05 && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-command-green)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, backgroundColor: 'var(--surface-container)', padding: '2px 8px', borderRadius: '4px', marginTop: '2px' }}>
+                        ✓ FULL CLEARANCE
+                      </div>
+                    )}
                   </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      Net Amount (With GST)
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
-                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.netAmount} onChange={e => setFormData({ ...formData, netAmount: e.target.value })} />
-                    </div>
+                  <label style={{ display: 'block', fontSize: 'var(--text-base)', fontWeight: 600, marginBottom: '8px' }}>Received Amount</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', fontWeight: 600, color: 'var(--text-tertiary)' }}>₹</span>
+                    <input 
+                       type="number"
+                       placeholder="0.00" 
+                       style={{ width: '100%', padding: '14px 14px 14px 34px', fontSize: '20px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: '2px solid var(--primary)', outline: 'none' }} 
+                       value={formData.amount} 
+                       onChange={e => setFormData({ ...formData, amount: e.target.value })} 
+                    />
                   </div>
-
-                  <Button onClick={handleCalc16} type="button" style={{ height: '42px', padding: '0 24px' }}>
-                     Calculate 16%
-                  </Button>
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-danger)', marginBottom: '6px' }}>
-                      TDS Deducted (Auto-calc)
-                    </label>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>₹</span>
-                      <Input type="number" placeholder="0.00" style={{ paddingLeft: '28px' }} value={formData.tdsDeducted} onChange={e => setFormData({ ...formData, tdsDeducted: e.target.value })} />
+                
+                {selectedInvoice && (
+                  <>
+                    <div style={{ alignSelf: 'flex-end', paddingBottom: '4px' }}>
+                      <Button type="button" variant="secondary" onClick={handleSettleFull} style={{ height: '52px' }}>{settledCash > 0 ? 'Settle Remaining' : 'Settle Full'}</Button>
                     </div>
-                  </div>
-
-                </div>
+                    <div style={{ flex: 1, backgroundColor: 'var(--surface-container-high)', padding: '12px 16px', borderRadius: 'var(--radius-md)', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Calculated TDS</div>
+                      <div style={{ fontSize: '20px', color: 'var(--text-primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{calculatedTDS.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px' }}>Received Amount / Final AR Settled</label>
-                  <Input type="number" placeholder="0.00" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
-                </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px' }}>Round Off (+/-) (Absorbed by Bank)</label>
                   <Input type="number" step="0.01" value={formData.roundOff} onChange={e => setFormData({ ...formData, roundOff: parseFloat(e.target.value) || 0 })} />
                 </div>
-              </div>
-
-              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)' }}>
                 <Input label="Receipt / Record Date" type="date" value={formData.transactionDate} onChange={e => setFormData({ ...formData, transactionDate: e.target.value })} style={{ flex: 1 }} />
                 <Input label="Transaction / Clearing Date" type="date" value={formData.clearingDate} onChange={e => setFormData({ ...formData, clearingDate: e.target.value })} style={{ flex: 1 }} />
               </div>

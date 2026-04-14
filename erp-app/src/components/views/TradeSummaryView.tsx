@@ -142,7 +142,7 @@ export function TradeSummaryView({ onNavigate }: { onNavigate?: (view: string) =
 
   // Inline Editing Lifecycle
   const openEdit = (tradeId: string) => {
-    const t = effectiveTrades.find(t => t.id === tradeId);
+    const t = effectiveTrades.find((t: any) => t.id === tradeId);
     if (!t) return;
     setEditingId(tradeId);
     setEditForm({
@@ -443,7 +443,7 @@ export function TradeSummaryView({ onNavigate }: { onNavigate?: (view: string) =
           pageSize={limit}
           onPageChange={setPage}
           onPageSizeChange={setLimit}
-          columns={columns}
+          columns={columns as any[]}
           renderRowActions={(row: any) => {
             if (editingId === row.id) {
               return (

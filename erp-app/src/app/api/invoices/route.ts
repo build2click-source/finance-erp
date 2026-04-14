@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
               product: { select: { sku: true, name: true } },
             },
           },
+          receipts: { where: { status: { in: ['posted', 'reconciled'] } } },
           _count: { select: { transactions: true } },
         },
       }),

@@ -32,11 +32,11 @@ function AppShellContent() {
 
   const { allowedViews, isLoading } = useRole();
 
-  const handleNavigate = (view: ViewId) => {
-    if (!allowedViews.includes(view)) {
+  const handleNavigate = (view: any) => {
+    if (!allowedViews.includes(view as ViewId)) {
       return; // silently blocked — sidebar already hides unauthorized items
     }
-    setActiveView(view);
+    setActiveView(view as ViewId);
   };
 
   // If still loading session, show a minimal spinner

@@ -612,11 +612,14 @@ function DraftBillPreview({ trades, client, periodLabel, onBack, draftCols, setD
             </div>
             <div style={{ 
               display: 'flex', justifyContent: 'space-between', 
-              backgroundColor: '#0e1629', color: 'white', 
-              padding: '16px', borderRadius: '12px' 
+              backgroundColor: '#fef2f2', color: '#dc2626',
+              border: '2px solid #ef4444',
+              padding: '16px', borderRadius: '12px',
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact'
             }}>
-              <span style={{ fontWeight: 600 }}>Total Commission</span>
-              <span style={{ fontWeight: 800, fontSize: '20px' }}>₹ {totalCommission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              <span style={{ fontWeight: 700 }}>Total Commission</span>
+              <span style={{ fontWeight: 900, fontSize: '20px', letterSpacing: '-0.5px' }}>₹ {totalCommission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>

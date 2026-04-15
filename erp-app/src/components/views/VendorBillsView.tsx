@@ -20,7 +20,14 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
   const [confirmPostId, setConfirmPostId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
-  const { data: billsResp, loading, revalidate } = useApi<any>(`/api/vendor-bills?page=${page}&limit=${limit}`);
+  const [search, setSearch] = useState('');
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('page', page.toString());
+  queryParams.set('limit', limit.toString());
+  if (search) queryParams.set('search', search);
+
+  const { data: billsResp, loading, revalidate } = useApi<any>(`/api/vendor-bills?${queryParams.toString()}`);
   const bills = billsResp?.data || [];
   const pagination = billsResp?.pagination || { total: 0 };
   const { canFinalizeInvoices } = useRole();
@@ -116,6 +123,7 @@ export function VendorBillsView({ onNavigate }: VendorBillsViewProps) {
         onPageChange={setPage}
         onPageSizeChange={setLimit}
         searchPlaceholder="Search by bill #, vendor..."
+        onSearch={(q) => { setSearch(q); setPage(1); }}
         renderRowActions={(b: any) => (
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             {b.status === 'draft' && (

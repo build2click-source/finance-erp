@@ -23,6 +23,7 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
 
@@ -48,6 +49,7 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
   if (fromDate) queryParams.set('from', fromDate);
   if (toDate) queryParams.set('to', toDate);
   if (statusFilter !== 'all') queryParams.set('status', statusFilter);
+  if (search) queryParams.set('search', search);
   queryParams.set('page', page.toString());
   queryParams.set('limit', limit.toString());
 
@@ -111,8 +113,13 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
       key: 'status', 
       header: 'Status', 
       render: (row: any) => (
-        <Badge variant={row.status === 'posted' ? 'success' : 'warning'}>
-          {row.status.toUpperCase()}
+        <Badge variant={
+          row.status === 'posted' ? 'success' :
+          row.status === 'paid' ? 'success' :
+          row.status === 'cancelled' ? 'default' :
+          'warning'
+        }>
+          {row.status === 'paid' ? '✓ PAID' : row.status.toUpperCase()}
         </Badge>
       )
     },
@@ -158,6 +165,8 @@ export function InvoicesView({ onNavigate }: InvoicesViewProps) {
             pageSize={limit}
             onPageChange={setPage}
             onPageSizeChange={setLimit}
+            searchPlaceholder="Search invoice #, client..."
+            onSearch={(q) => { setSearch(q); setPage(1); }}
             filters={
               <>
                 <Select

@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get('clientId');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const search = searchParams.get('search') || '';
 
     const where: any = {};
     if (posted === 'true') where.postedAt = { not: null };
@@ -88,6 +89,19 @@ export async function GET(request: NextRequest) {
       where.createdAt = {};
       if (from) where.createdAt.gte = new Date(from);
       if (to) where.createdAt.lte = new Date(to);
+    }
+    if (search) {
+      const searchClauses = [
+        { description: { contains: search, mode: 'insensitive' } },
+        { referenceId: { contains: search, mode: 'insensitive' } },
+      ];
+      // If there's already an OR (from clientId), wrap in AND
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchClauses }];
+        delete where.OR;
+      } else {
+        where.OR = searchClauses;
+      }
     }
 
     const [transactions, total] = await Promise.all([

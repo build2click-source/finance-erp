@@ -106,20 +106,41 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
   let transactionId = '';
 
   if (!isDraft) {
-    const grossAmount = input.amount + (input.roundOff || 0);
-    // Journal setup: Dr Bank / Cr Accounts Receivable
+    const roundOff = input.roundOff || 0;
+    const arCredit = input.amount + roundOff; // Full AR clearance (amount + write-off)
+
+    // Look up the Round-off & Discounts account (code 5500)
+    // If not found, fall back to single-line journal (Bank = grossAmount)
+    const roundOffAccount = roundOff !== 0
+      ? await prisma.account.findUnique({ where: { code: '5500' }, select: { id: true } })
+      : null;
+
     const journalLines: JournalLine[] = [
       {
         accountId: bank.accountId,
-        amount: grossAmount, // Positive = Dr
+        amount: input.amount,   // Dr Bank = actual cash received only
         entryType: 'Dr',
       },
       {
         accountId: input.arAccountId,
-        amount: -grossAmount, // Negative = Cr
+        amount: -arCredit,      // Cr AR = full invoice settlement
         entryType: 'Cr',
-      }
+      },
     ];
+
+    // Add round-off journal line if account exists and roundOff is non-zero
+    // roundOff > 0 → discount/write-off → Dr Expense (5500)
+    // roundOff < 0 → overpayment absorbed → Cr Income (5500)
+    if (roundOff !== 0 && roundOffAccount) {
+      journalLines.push({
+        accountId: roundOffAccount.id,
+        amount: roundOff,       // Positive = Dr expense; Negative = Cr income
+        entryType: roundOff > 0 ? 'Dr' : 'Cr',
+      });
+    } else if (roundOff !== 0 && !roundOffAccount) {
+      // Fallback: no round-off account found — absorb into bank entry
+      journalLines[0].amount = arCredit;
+    }
 
     // Atomic transaction
     const txResult = await createTransaction({
@@ -131,6 +152,7 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
     });
     transactionId = txResult.transactionId;
   }
+
 
   await prisma.receipt.create({
     data: {
@@ -153,23 +175,43 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
   });
 
   // ── Invoice Settlement ────────────────────────────────────────────────
-  // If this receipt is linked to an invoice and is posted, check if the
-  // invoice is now fully settled (receipt amount >= 95% of invoice total).
-  // If so, mark the invoice as 'cancelled' (the only "terminal" status
-  // in the schema that removes it from AR — pending a paid status migration).
+  // If this receipt is linked to a posted invoice, sum ALL posted receipts
+  // (the new one was just persisted above, so it's included in the query).
+  // Effective settlement = amount + roundOff (bankPosting = Dr amount + roundOff).
+  // If the total settled >= expected cash (taxable × 1.16), mark as 'paid'.
   if (!isDraft && input.invoiceId) {
     try {
       const invoice = await prisma.invoice.findUnique({
         where: { id: input.invoiceId },
-        select: { totalAmount: true, status: true },
+        select: {
+          totalAmount: true,
+          totalTax: true,
+          status: true,
+          receipts: {
+            where: { status: { in: ['posted', 'reconciled'] } },
+            select: { amount: true, roundOff: true },
+          },
+        },
       });
       if (invoice && invoice.status === 'posted') {
         const invoiceTotal = Number(invoice.totalAmount);
-        const grossReceived = input.amount + (input.tdsAmount || 0);
-        if (grossReceived >= invoiceTotal * 0.95) {
+        const totalTax = Number((invoice as any).totalTax || 0);
+        const taxable = invoiceTotal - totalTax;
+        // Expected cash client pays after TDS (taxable × 1.16)
+        const expectedCash = taxable > 0 ? taxable * 1.16 : invoiceTotal;
+
+        // Sum all posted receipts: amount + roundOff gives the effective bank posting
+        // Positive roundOff = write-off/discount (client short-paid, we absorbed it)
+        // Negative roundOff = overpayment absorbed as a write-off
+        const totalReceived = invoice.receipts.reduce(
+          (sum, r) => sum + Number(r.amount) + Number(r.roundOff || 0),
+          0
+        );
+
+        if (totalReceived >= expectedCash * 0.99) {
           await prisma.invoice.update({
             where: { id: input.invoiceId },
-            data: { status: 'cancelled' }, // 'cancelled' = fully settled/paid in current schema
+            data: { status: 'paid' },
           });
         }
       }
@@ -178,6 +220,7 @@ export async function postReceipt(input: CreateReceiptInput): Promise<PostedSett
       console.warn('Invoice settlement update failed:', err);
     }
   }
+
 
   return {
     id: receiptId,

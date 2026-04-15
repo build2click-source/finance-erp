@@ -23,12 +23,14 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [search, setSearch] = useState('');
 
   const queryParams = new URLSearchParams();
   if (fromDate) queryParams.set('from', fromDate);
   if (toDate) queryParams.set('to', toDate);
   if (bankFilter !== 'all') queryParams.set('bankId', bankFilter);
   if (clientFilter !== 'all') queryParams.set('clientId', clientFilter);
+  if (search) queryParams.set('search', search);
   queryParams.set('page', page.toString());
   queryParams.set('limit', limit.toString());
 
@@ -98,6 +100,18 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
             header: 'Amount',
             render: (r) => <span className="currency" style={{ fontWeight: 500 }}>{formatINR(r.amount)}</span>,
           },
+          {
+            key: 'roundOff',
+            header: 'Round-off',
+            render: (r) => (
+              <span className="font-technical" style={{ 
+                color: Number(r.roundOff) < 0 ? 'var(--color-danger)' : 'var(--text-tertiary)',
+                fontWeight: Number(r.roundOff) !== 0 ? 600 : 400
+              }}>
+                {Number(r.roundOff) !== 0 ? (Number(r.roundOff) > 0 ? '+' : '') + formatINR(r.roundOff) : '—'}
+              </span>
+            ),
+          },
           { key: 'date', header: 'Date', render: (r) => <span style={{ color: 'var(--text-tertiary)' }}>{new Date(r.transactionDate).toLocaleDateString()}</span> },
           {
             key: 'status',
@@ -133,6 +147,7 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
           </>
         }
         searchPlaceholder="Search by receipt #, client..."
+        onSearch={(q) => { setSearch(q); setPage(1); }}
         renderRowActions={(r: any) => (
           <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
             <button
@@ -192,7 +207,19 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
             </div>
             {[
               { label: 'Client', value: detailReceipt.client?.name || '—' },
-              { label: 'Amount', value: `₹${Number(detailReceipt.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` },
+              { label: 'Received Amount', value: `₹${Number(detailReceipt.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` },
+              { 
+                label: 'Round-off', 
+                value: detailReceipt.roundOff && Number(detailReceipt.roundOff) !== 0 
+                  ? `${Number(detailReceipt.roundOff) > 0 ? '+' : ''}₹${Number(detailReceipt.roundOff).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                  : '—',
+                color: Number(detailReceipt.roundOff) < 0 ? 'var(--color-danger)' : undefined
+              },
+              { 
+                label: 'Total Settled', 
+                value: `₹${(Number(detailReceipt.amount) + Number(detailReceipt.roundOff || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                highlight: true 
+              },
               { label: 'TDS Deducted', value: detailReceipt.tdsAmount ? `₹${Number(detailReceipt.tdsAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—' },
               { label: 'Bank', value: detailReceipt.bankAccount?.bankName || '—' },
               { label: 'Payment Mode', value: detailReceipt.paymentMode || '—' },
@@ -200,12 +227,27 @@ export function ReceiptsView({ onNavigate }: ReceiptsViewProps) {
               { label: 'Date', value: new Date(detailReceipt.transactionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) },
               { label: 'Status', value: detailReceipt.status?.toUpperCase() || '—' },
             ].map(row => (
-              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: 'var(--space-3) 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>{row.label}</span>
-                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-data)' }}>{row.value}</span>
+              <div key={row.label} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                padding: 'var(--space-3) 0', 
+                borderBottom: '1px solid var(--border-subtle)',
+                backgroundColor: (row as any).highlight ? 'var(--surface-container-high)' : 'transparent',
+                margin: (row as any).highlight ? '0 -var(--space-2)' : '0',
+                paddingInline: (row as any).highlight ? 'var(--space-2)' : '0',
+                borderRadius: (row as any).highlight ? 'var(--radius-sm)' : '0'
+              }}>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)', fontWeight: (row as any).highlight ? 600 : 400 }}>{row.label}</span>
+                <span style={{ 
+                  fontSize: 'var(--text-sm)', 
+                  fontWeight: (row as any).highlight ? 700 : 500, 
+                  color: (row as any).color || 'var(--text-primary)', 
+                  fontFamily: 'var(--font-data)' 
+                }}>{row.value}</span>
               </div>
             ))}
           </div>
+
         </div>
       )}
 
@@ -303,13 +345,14 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
       calculatedTDS = totalTDS * ratio;
   }
 
-  const handleSettleFull = () => {
-      if (remainingExpectedCash > 0) {
-          setFormData(prev => ({ ...prev, amount: remainingExpectedCash.toFixed(2), roundOff: 0 }));
-      } else if (expectedReceived > 0) {
-          setFormData(prev => ({ ...prev, amount: expectedReceived.toFixed(2), roundOff: 0 }));
-      }
-  };
+  // Overpayment: only applies when an invoice is selected and remaining due is known
+  const overpayment = selectedInvoice && remainingExpectedCash > 0 && numAmount > remainingExpectedCash
+    ? numAmount - remainingExpectedCash
+    : 0;
+  const isOverpaying = overpayment > 0.01;
+
+  // Effective round-off: when overpaying, auto-absorb the excess as negative round-off
+  const effectiveRoundOff = isOverpaying ? -overpayment : (Number(formData.roundOff) || 0);
 
   const handleSave = async (statusOverride?: string) => {
     setSaving(true);
@@ -326,7 +369,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
         status: statusOverride || formData.status,
         invoiceId: formData.invoiceId,
         clearingDate: formData.clearingDate,
-        roundOff: Number(formData.roundOff) || 0,
+        roundOff: effectiveRoundOff,
       });
       onSuccess();
     } catch (e) {
@@ -337,6 +380,8 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
     }
   };
 
+  const isSaveDisabled = saving || !formData.bankAccountId || !formData.clientId || !formData.amount;
+
   return (
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: 'var(--space-10)' }}>
       <PageHeader
@@ -345,10 +390,10 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
         actions={
           <>
             <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancel</Button>
-            <Button variant="secondary" onClick={() => handleSave('draft')} disabled={saving || !formData.bankAccountId || !formData.clientId || !formData.amount}>
+            <Button variant="secondary" onClick={() => handleSave('draft')} disabled={isSaveDisabled}>
               Save as Draft
             </Button>
-            <Button onClick={() => handleSave('posted')} disabled={saving || !formData.bankAccountId || !formData.clientId || !formData.amount}>
+            <Button onClick={() => handleSave('posted')} disabled={isSaveDisabled}>
               {saving ? 'Saving...' : 'Post Receipt'}
             </Button>
           </>
@@ -370,7 +415,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
             <Select
               label="Client (Payer)"
               value={formData.clientId}
-              onChange={e => setFormData({ ...formData, clientId: e.target.value })}
+              onChange={e => setFormData({ ...formData, clientId: e.target.value, invoiceId: '' })}
               options={[
                 { value: '', label: 'Select Payer' },
                 ...clients.map((c: any) => ({ value: c.id, label: c.name })),
@@ -387,7 +432,7 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                 <Select
                   label="Bill / Invoice (Optional)"
                   value={formData.invoiceId}
-                  onChange={e => setFormData({ ...formData, invoiceId: e.target.value })}
+                  onChange={e => setFormData({ ...formData, invoiceId: e.target.value, amount: '' })}
                   disabled={!formData.clientId}
                   options={[
                     { value: '', label: 'Select Invoice to settle' },
@@ -441,10 +486,11 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
               />
               <Input label="Transaction Reference Number (UTR)" placeholder="e.g. UTR123456789" value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} />
 
-              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)', alignItems: 'center', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)' }}>
+              {/* Received Amount + Calculated TDS */}
+              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)', alignItems: 'center', backgroundColor: 'var(--surface-container-low)', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', border: isOverpaying ? '2px solid var(--color-danger, #ef4444)' : '2px solid transparent', transition: 'border 0.2s' }}>
                 <div style={{ flex: 2, position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '-24px', position: 'relative', zIndex: 1, pointerEvents: 'none', paddingRight: '12px' }}>
-                    {selectedInvoice && numAmount > 0 && Math.abs(numAmount - remainingExpectedCash) < 0.05 && (
+                    {selectedInvoice && numAmount > 0 && !isOverpaying && Math.abs(numAmount - remainingExpectedCash) < 0.05 && (
                       <div style={{ fontSize: '11px', color: 'var(--color-command-green)', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, backgroundColor: 'var(--surface-container)', padding: '2px 8px', borderRadius: '4px', marginTop: '2px' }}>
                         ✓ FULL CLEARANCE
                       </div>
@@ -453,33 +499,60 @@ function ReceiptForm({ onCancel, onSuccess }: { onCancel: () => void, onSuccess:
                   <label style={{ display: 'block', fontSize: 'var(--text-base)', fontWeight: 600, marginBottom: '8px' }}>Received Amount</label>
                   <div style={{ position: 'relative' }}>
                     <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', fontWeight: 600, color: 'var(--text-tertiary)' }}>₹</span>
-                    <input 
+                    <input
                        type="number"
-                       placeholder="0.00" 
-                       style={{ width: '100%', padding: '14px 14px 14px 34px', fontSize: '20px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: '2px solid var(--primary)', outline: 'none' }} 
-                       value={formData.amount} 
-                       onChange={e => setFormData({ ...formData, amount: e.target.value })} 
+                       placeholder="0.00"
+                       style={{ width: '100%', padding: '14px 14px 14px 34px', fontSize: '20px', fontWeight: 700, borderRadius: 'var(--radius-md)', border: isOverpaying ? '2px solid var(--color-danger, #ef4444)' : '2px solid var(--primary)', outline: 'none', transition: 'border 0.2s' }}
+                       value={formData.amount}
+                       onChange={e => setFormData({ ...formData, amount: e.target.value })}
                     />
                   </div>
+                  {selectedInvoice && remainingExpectedCash > 0 && (
+                    <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                      Max allowed: ₹{remainingExpectedCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </div>
+                  )}
                 </div>
-                
+
                 {selectedInvoice && (
-                  <>
-                    <div style={{ alignSelf: 'flex-end', paddingBottom: '4px' }}>
-                      <Button type="button" variant="secondary" onClick={handleSettleFull} style={{ height: '52px' }}>{settledCash > 0 ? 'Settle Remaining' : 'Settle Full'}</Button>
-                    </div>
-                    <div style={{ flex: 1, backgroundColor: 'var(--surface-container-high)', padding: '12px 16px', borderRadius: 'var(--radius-md)', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Calculated TDS</div>
-                      <div style={{ fontSize: '20px', color: 'var(--text-primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{calculatedTDS.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </div>
-                  </>
+                  <div style={{ flex: 1, backgroundColor: 'var(--surface-container-high)', padding: '12px 16px', borderRadius: 'var(--radius-md)', alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '4px' }}>Calculated TDS</div>
+                    <div style={{ fontSize: '20px', color: 'var(--text-primary)', fontWeight: 700, fontFamily: 'var(--font-data)' }}>₹{calculatedTDS.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  </div>
                 )}
               </div>
 
+              {/* Overpayment Alert — informational, saving is still allowed */}
+              {isOverpaying && (
+                <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-4)', backgroundColor: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.5)', borderRadius: 'var(--radius-md)' }}>
+                  <span style={{ fontSize: '18px' }}>⚠️</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#ef4444' }}>Overpayment Detected</div>
+                    <div style={{ fontSize: '12px', color: '#ef4444', fontFamily: 'var(--font-data)' }}>
+                      Amount exceeds remaining due by <strong>₹{overpayment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>. The excess has been auto-applied as a negative Round Off below.
+                    </div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                    <div style={{ fontSize: '11px', color: '#ef4444', fontWeight: 600, textTransform: 'uppercase' }}>Auto Round Off</div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: '#ef4444', fontFamily: 'var(--font-data)' }}>
+                      −₹{overpayment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div style={{ gridColumn: 'span 2', display: 'flex', gap: 'var(--space-4)' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px' }}>Round Off (+/-) (Absorbed by Bank)</label>
-                  <Input type="number" step="0.01" value={formData.roundOff} onChange={e => setFormData({ ...formData, roundOff: parseFloat(e.target.value) || 0 })} />
+                  <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: '6px', color: isOverpaying ? '#ef4444' : 'inherit' }}>
+                    Round Off (+/-) {isOverpaying ? '— Auto-absorbed Overpayment' : '(Absorbed by Bank)'}
+                  </label>
+                  {isOverpaying ? (
+                    <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '2px solid rgba(239,68,68,0.5)', backgroundColor: 'rgba(239,68,68,0.06)', fontSize: '16px', fontWeight: 700, color: '#ef4444', fontFamily: 'var(--font-data)' }}>
+                      −₹{overpayment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  ) : (
+                    <Input type="number" step="0.01" value={formData.roundOff} onChange={e => setFormData({ ...formData, roundOff: parseFloat(e.target.value) || 0 })} />
+                  )}
                 </div>
                 <Input label="Receipt / Record Date" type="date" value={formData.transactionDate} onChange={e => setFormData({ ...formData, transactionDate: e.target.value })} style={{ flex: 1 }} />
                 <Input label="Transaction / Clearing Date" type="date" value={formData.clearingDate} onChange={e => setFormData({ ...formData, clearingDate: e.target.value })} style={{ flex: 1 }} />

@@ -292,6 +292,7 @@ enum InvoiceType {
 enum InvoiceStatus {
   draft
   posted
+  paid
   cancelled
 
   @@schema("ERP")

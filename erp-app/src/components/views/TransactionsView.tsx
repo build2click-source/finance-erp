@@ -19,12 +19,14 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
+  const [search, setSearch] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   const queryParams = new URLSearchParams();
   if (selectedClient) queryParams.set('clientId', selectedClient);
   if (dateFrom) queryParams.set('from', dateFrom);
   if (dateTo) queryParams.set('to', dateTo);
+  if (search) queryParams.set('search', search);
   queryParams.set('page', page.toString());
   queryParams.set('limit', limit.toString());
 
@@ -121,6 +123,7 @@ export function TransactionsView({ onNavigate }: TransactionsViewProps) {
           onPageChange={setPage}
           onPageSizeChange={setLimit}
           searchPlaceholder="Search particulars, ref #..."
+          onSearch={(q) => { setSearch(q); setPage(1); }}
           filters={
             <>
               <Select

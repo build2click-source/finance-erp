@@ -81,17 +81,28 @@ export async function GET(request: NextRequest) {
     const clientId = searchParams.get('clientId');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
 
-    const where: Record<string, unknown> = {};
-    if (status) where.status = status;
-    if (clientId) where.clientId = clientId;
+    const andClauses: any[] = [];
+    if (status) andClauses.push({ status });
+    if (clientId) andClauses.push({ clientId });
     if (from || to) {
-      where.date = {} as Record<string, Date>;
-      if (from) (where.date as Record<string, Date>).gte = new Date(from);
-      if (to) (where.date as Record<string, Date>).lte = new Date(to);
+      const dateCond: any = {};
+      if (from) dateCond.gte = new Date(from);
+      if (to) dateCond.lte = new Date(to);
+      andClauses.push({ date: dateCond });
     }
+    if (search) {
+      andClauses.push({
+        OR: [
+          { invoiceNumber: { contains: search, mode: 'insensitive' } },
+          { client: { name: { contains: search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+    const where: any = andClauses.length > 0 ? { AND: andClauses } : {};
 
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({

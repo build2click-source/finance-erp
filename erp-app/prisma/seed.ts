@@ -59,6 +59,7 @@ const accounts = [
   { code: '5200', name: 'Commission Expense', type: 'Expense' as AccountType, isPandL: true, parentCode: '5000' },
   { code: '5300', name: 'General & Admin Expenses', type: 'Expense' as AccountType, isPandL: true, parentCode: '5000' },
   { code: '5400', name: 'Bank Charges', type: 'Expense' as AccountType, isPandL: true, parentCode: '5000' },
+  { code: '5500', name: 'Round-off & Discounts', type: 'Expense' as AccountType, isPandL: true, parentCode: '5000' },
 ];
 
 const POLICIES = [

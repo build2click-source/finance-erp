@@ -100,11 +100,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Layer in receipts (collected amounts)
+    // Effective settlement per receipt = amount + roundOff
+    // (positive roundOff = write-off absorbed; negative roundOff = overpayment absorbed)
     for (const receipt of receipts) {
       if (!receipt.client) continue;
       const { id: clientId } = receipt.client;
       if (clientMap[clientId]) {
-        clientMap[clientId].totalCollected += Number(receipt.amount || 0);
+        const effectiveCollected = Number(receipt.amount || 0) + Number((receipt as any).roundOff || 0);
+        clientMap[clientId].totalCollected += effectiveCollected;
       }
     }
 

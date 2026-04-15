@@ -23,10 +23,24 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
+    const search = searchParams.get('search') || '';
     const skip = (page - 1) * limit;
+
+    const andClauses: any[] = [];
+    if (search) {
+      andClauses.push({
+        OR: [
+          { billNumber: { contains: search, mode: 'insensitive' } },
+          { vendor: { name: { contains: search, mode: 'insensitive' } } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    const where: any = andClauses.length > 0 ? { AND: andClauses } : {};
 
     const [bills, total] = await Promise.all([
       prisma.vendorBill.findMany({
+        where,
         include: {
           vendor: {
             select: { name: true, gstin: true }
@@ -36,7 +50,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         skip,
       }),
-      prisma.vendorBill.count(),
+      prisma.vendorBill.count({ where }),
     ]);
     
     return NextResponse.json({ 

@@ -31,13 +31,39 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '100');
     const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
+    const search = searchParams.get('search') || '';
+    const clientId = searchParams.get('clientId') || '';
+    const bankId = searchParams.get('bankId') || '';
+    const from = searchParams.get('from') || '';
+    const to = searchParams.get('to') || '';
 
     let receipts: any[] = [];
     let total = 0;
 
     if (!type || type === 'receipt') {
+      const andClauses: any[] = [];
+      if (clientId) andClauses.push({ clientId });
+      if (bankId) andClauses.push({ bankAccountId: bankId });
+      if (from || to) {
+        const dateCond: any = {};
+        if (from) dateCond.gte = new Date(from);
+        if (to) dateCond.lte = new Date(to);
+        andClauses.push({ date: dateCond });
+      }
+      if (search) {
+        andClauses.push({
+          OR: [
+            { receiptNumber: { contains: search, mode: 'insensitive' } },
+            { client: { name: { contains: search, mode: 'insensitive' } } },
+            { referenceNumber: { contains: search, mode: 'insensitive' } },
+          ],
+        });
+      }
+      const where: any = andClauses.length > 0 ? { AND: andClauses } : {};
+
       const [rows, count, sum] = await Promise.all([
         prisma.receipt.findMany({
+          where,
           include: {
             client: { select: { id: true, name: true } },
             bankAccount: { select: { id: true, bankName: true, accountNumber: true } },
@@ -47,7 +73,7 @@ export async function GET(req: NextRequest) {
           take: limit,
           skip,
         }),
-        prisma.receipt.count(),
+        prisma.receipt.count({ where }),
         prisma.receipt.aggregate({ _sum: { amount: true } }),
       ]);
       total = count;
